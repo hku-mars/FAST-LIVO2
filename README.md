@@ -89,8 +89,16 @@ All sequences in FAST-LIVO2 private dataset are captured using low-cost Livox Av
  Building 01”.</p>
 </div>
 
+#### 4.4 Fully Onboard Autonomous UAV Navigation
 
+We mark a pioneering instance of employing a LiDAR-inertial-visual system for real-world autonomous UAV flights. Our UAV, equipped with LiDAR, a camera, and an inertial sensor, performs online state estimation (i.e., FAST-LIVO2), trajectory planning, and tracking control, all managed entirely by its onboard computer.
+<div align="center">
+    <img src="./pics/uav_exp1.jpg" alt="uav_exp1"/>
+    <p style="margin-top: 2px;">(a) shows the overall point map of the "Basement" experiment. In (a1)-(a4), white points indicate the LiDAR scan at that moment, and colored lines depict the planned trajectory. (a1) and (a4) mark areas of LiDAR degeneration. (a2) and (a3) show obstacle avoidance. (a5) and (a6) depict the camera first-person view from indoor to outdoor, highlighting large illumination variation from sudden overexposure to normal.</p>
+</div>
 
-
-
+<div align="center">
+    <img src="./pics/uav_exp2.jpg" alt="uav_exp2"/>
+    <p style="margin-top: 2px;">(a) and (b) show the enlarged point maps of the "Woods" and "Narrow Opening" experiments, respectively. The red points in (a1), (a3), and (b4) represent the LiDAR scan at that moment. (a2) and (a4) represent the first-person view at the corresponding locations. (b1)-(b3) depict the third-person view.</p>
+</div>
 
