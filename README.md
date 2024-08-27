@@ -8,7 +8,9 @@ Our accompanying video is now available on [**YouTube**](https://www.youtube.com
 
 ### 2. Related paper
 
-Related paper will be available on **arxiv** soon.  
+[FAST-LIVO: Fast and Tightly-coupled Sparse-Direct LiDAR-Inertial-Visual Odometry](https://arxiv.org/pdf/2203.00893)
+
+[FAST-LIVO2: Fast, Direct LiDAR-Inertial-Visual Odometry](https://arxiv.org/pdf/2408.14035)  
 
 ### 3. Codes & Datasets & Application
 
