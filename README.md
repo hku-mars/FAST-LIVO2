@@ -2,15 +2,24 @@
 
 ## FAST-LIVO2: Fast, Direct LiDAR-Inertial-Visual Odometry
 
+### 📢 News
+
+- 🎉 **2024-10-01**: Accepted by **T-RO '24**!  
+- 🚀 **2024-07-02**: Conditionally accepted.
+
+### 📬 Contact
+
+If you have any questions, please feel free to contact: Chunran Zheng [zhengcr@connect.hku.hk](mailto:zhengcr@connect.hku.hk).
+
 ### 1. Related video
 
-Our accompanying video is now available on [**YouTube**](https://www.youtube.com/watch?v=aSAwVqR22mo&ab_channel=MARSLABHKU).
+Our accompanying video is now available on [**Bilibili**](https://www.bilibili.com/video/BV1Ezxge7EEi) and [**YouTube**](https://youtu.be/6dF2DzgbtlY).
 
 ### 2. Related paper
 
-[FAST-LIVO: Fast and Tightly-coupled Sparse-Direct LiDAR-Inertial-Visual Odometry](https://arxiv.org/pdf/2203.00893)
-
 [FAST-LIVO2: Fast, Direct LiDAR-Inertial-Visual Odometry](https://arxiv.org/pdf/2408.14035)  
+
+[FAST-LIVO: Fast and Tightly-coupled Sparse-Direct LiDAR-Inertial-Visual Odometry](https://arxiv.org/pdf/2203.00893)
 
 ### 3. Codes & Datasets & Application
 
@@ -103,4 +112,3 @@ We mark a pioneering instance of employing a LiDAR-inertial-visual system for re
     <img src="./pics/uav_exp2.jpg" alt="uav_exp2"/>
     <p style="margin-top: 2px;">(a) and (b) show the enlarged point maps of the "Woods" and "Narrow Opening" experiments, respectively. The red points in (a1), (a3), and (b4) represent the LiDAR scan at that moment. (a2) and (a4) represent the first-person view at the corresponding locations. (b1)-(b3) depict the third-person view.</p>
 </div>
-
