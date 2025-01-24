@@ -19,6 +19,7 @@ Preprocess::Preprocess() : feature_enabled(0), lidar_type(AVIA), blind(0.01), po
 {
   inf_bound = 10;
   N_SCANS = 6;
+  SCAN_RATE = 10;
   group_size = 8;
   disA = 0.01;
   disA = 0.1; // B?
@@ -344,15 +345,16 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
   pcl::PointCloud<velodyne_ros::Point> pl_orig;
   pcl::fromROSMsg(*msg, pl_orig);
   int plsize = pl_orig.points.size();
+  if (plsize == 0) return;
   pl_surf.reserve(plsize);
 
   bool is_first[MAX_LINE_NUM];
   double yaw_fp[MAX_LINE_NUM] = {0};     // yaw of first scan point
-  double omega_l = 3.61;                 // scan angular velocity
+  double omega_l = 0.361 * SCAN_RATE;                 // scan angular velocity
   float yaw_last[MAX_LINE_NUM] = {0.0};  // yaw of last scan point
   float time_last[MAX_LINE_NUM] = {0.0}; // last offset time
 
-  if (pl_orig.points[plsize - 1].t > 0) { given_offset_time = true; }
+  if (pl_orig.points[plsize - 1].time > 0) { given_offset_time = true; }
   else
   {
     given_offset_time = false;
@@ -390,7 +392,7 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
       added_pt.y = pl_orig.points[i].y;
       added_pt.z = pl_orig.points[i].z;
       added_pt.intensity = pl_orig.points[i].intensity;
-      added_pt.curvature = pl_orig.points[i].t / 1000.0; // units: ms
+      added_pt.curvature = pl_orig.points[i].time / 1000.0; // units: ms
 
       if (!given_offset_time)
       {
@@ -453,7 +455,7 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
       added_pt.y = pl_orig.points[i].y;
       added_pt.z = pl_orig.points[i].z;
       added_pt.intensity = pl_orig.points[i].intensity;
-      added_pt.curvature = pl_orig.points[i].t / 1000.0;
+      added_pt.curvature = pl_orig.points[i].time / 1000.0;
 
       if (!given_offset_time)
       {
@@ -477,8 +479,6 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
 
         if (added_pt.curvature < time_last[layer]) added_pt.curvature += 360.0 / omega_l;
 
-        // added_pt.curvature = pl_orig.points[i].t;
-
         yaw_last[layer] = yaw_angle;
         time_last[layer] = added_pt.curvature;
       }
@@ -491,8 +491,6 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
         if (added_pt.x * added_pt.x + added_pt.y * added_pt.y + added_pt.z * added_pt.z > blind_sqr)
         {
           pl_surf.points.push_back(added_pt);
-          // printf("time mode: %d time: %d \n", given_offset_time,
-          // pl_orig.points[i].t);
         }
       }
     }
