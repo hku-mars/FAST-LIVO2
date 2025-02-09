@@ -921,12 +921,12 @@ void VoxelMapManager::mapJet(double v, double vmin, double vmax, uint8_t &r, uin
   b = (uint8_t)(255 * db);
 }
 
-bool VoxelMapManager::mapSliding()
+void VoxelMapManager::mapSliding()
 {
   if((position_last_ - last_slide_position).norm() < config_setting_.sliding_thresh)
   {
     std::cout<<RED<<"[DEBUG]: Last sliding length "<<(position_last_ - last_slide_position).norm()<<RESET<<"\n";
-    return false;
+    return;
   }
 
   //get global id now
@@ -944,7 +944,7 @@ bool VoxelMapManager::mapSliding()
                     (int64_t)loc_xyz[2] + config_setting_.half_map_size, (int64_t)loc_xyz[2] - config_setting_.half_map_size);
   double t_sliding_end = omp_get_wtime();
   std::cout<<RED<<"[DEBUG]: Map sliding using "<<t_sliding_end - t_sliding_start<<" secs"<<RESET<<"\n";
-  return true;
+  return;
 }
 
 void VoxelMapManager::clearMemOutOfMap(const int& x_max,const int& x_min,const int& y_max,const int& y_min,const int& z_max,const int& z_min )

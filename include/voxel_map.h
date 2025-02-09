@@ -242,7 +242,7 @@ public:
 
   void pubVoxelMap();
 
-  bool mapSliding();
+  void mapSliding();
   void clearMemOutOfMap(const int& x_max,const int& x_min,const int& y_max,const int& y_min,const int& z_max,const int& z_min );
 
 private:

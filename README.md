@@ -64,27 +64,17 @@ make
 sudo make install
 ```
 
-### 2.4 Mimalloc (optional)
-
-Mimalloc is a high-performance memory allocator developed by Microsoft, optimized for speed and memory efficiency.
-
-```bash
-git clone https://github.com/microsoft/mimalloc.git
-mkdir build && cd build && cmake ..
-make
-sudo make install
-```
-
-### 2.5 Vikit
+### 2.4 Vikit
 
 Vikit contains camera models, some math and interpolation functions that we need. Vikit is a catkin project, therefore, download it into your catkin workspace source folder.
 
 ```bash
+# Different from the one used in fast-livo1
 cd catkin_ws/src
-git clone https://github.com/xuankuzcr/rpg_vikit.git
+git clone https://github.com/xuankuzcr/rpg_vikit.git 
 ```
 
-### 2.6 **livox_ros_driver**
+### 2.5 **livox_ros_driver**
 
 Follow [livox_ros_driver Installation](https://github.com/Livox-SDK/livox_ros_driver).
 

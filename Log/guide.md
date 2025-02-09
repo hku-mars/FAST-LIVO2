@@ -1,1 +1,1 @@
-Here are the saved debug records, which can be plotted using ./log/plot.py.
+Here are the saved debug records, which can be plotted using ./Log/plot.py.
