@@ -10,7 +10,7 @@ This file is subject to the terms and conditions outlined in the 'LICENSE' file,
 which is included as part of this source code package.
 */
 
-#include "vio.h"
+#include "fastlivo2/vio.h"
 
 VIOManager::VIOManager()
 {
@@ -42,28 +42,28 @@ void VIOManager::initializeVIO()
 {
   visual_submap = new SubSparseMap;
 
-  fx = cam->fx();
+  fx = cam->fx(); //possible error accessing fx
   fy = cam->fy();
   cx = cam->cx();
   cy = cam->cy();
   image_resize_factor = cam->scale();
-
+  
   printf("intrinsic: %.6lf, %.6lf, %.6lf, %.6lf\n", fx, fy, cx, cy);
-
+  
   width = cam->width();
   height = cam->height();
-
+  
   printf("width: %d, height: %d, scale: %f\n", width, height, image_resize_factor);
   Rci = Rcl * Rli;
   Pci = Rcl * Pli + Pcl;
-
+  
   V3D Pic;
   M3D tmp;
   Jdphi_dR = Rci;
   Pic = -Rci.transpose() * Pci;
   tmp << SKEW_SYM_MATRX(Pic);
   Jdp_dR = -Rci * tmp;
-
+  
   if (grid_size > 10)
   {
     grid_n_width = ceil(static_cast<double>(width / grid_size));
@@ -76,7 +76,7 @@ void VIOManager::initializeVIO()
     grid_n_width = ceil(static_cast<double>(width / grid_size));
   }
   length = grid_n_width * grid_n_height;
-
+  
   if(raycast_en)
   {
     // cv::Mat img_test = cv::Mat::zeros(height, width, CV_8UC1);

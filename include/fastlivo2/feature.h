@@ -13,7 +13,9 @@ which is included as part of this source code package.
 #ifndef LIVO_FEATURE_H_
 #define LIVO_FEATURE_H_
 
-#include "visual_point.h"
+#pragma once
+
+#include "fastlivo2/visual_point.h"
 
 // A salient image region that is tracked across frames.
 struct Feature
@@ -48,7 +50,7 @@ struct Feature
   
   ~Feature()
   {
-    // ROS_WARN("The feature %d has been destructed.", id_);
+    // RCLCPP_WARN(this->get_logger(), "The feature %d has been destructed.", id_);
     delete[] patch_;
   }
 };

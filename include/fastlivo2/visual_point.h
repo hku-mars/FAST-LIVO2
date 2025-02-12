@@ -13,9 +13,12 @@ which is included as part of this source code package.
 #ifndef LIVO_POINT_H_
 #define LIVO_POINT_H_
 
+#pragma once
+
 #include <boost/noncopyable.hpp>
-#include "common_lib.h"
-#include "frame.h"
+
+#include "fastlivo2/common_lib.h"
+#include "fastlivo2/frame.h"
 
 class Feature;
 

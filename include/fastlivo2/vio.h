@@ -13,8 +13,8 @@ which is included as part of this source code package.
 #ifndef VIO_H_
 #define VIO_H_
 
-#include "voxel_map.h"
-#include "feature.h"
+#pragma once
+
 #include <opencv2/imgproc/imgproc_c.h>
 #include <pcl/filters/voxel_grid.h>
 #include <set>
@@ -22,6 +22,9 @@ which is included as part of this source code package.
 #include <vikit/robust_cost.h>
 #include <vikit/vision.h>
 #include <vikit/pinhole_camera.h>
+
+#include "fastlivo2/voxel_map.h"
+#include "fastlivo2/feature.h"
 
 struct SubSparseMap
 {

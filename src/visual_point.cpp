@@ -10,10 +10,11 @@ This file is subject to the terms and conditions outlined in the 'LICENSE' file,
 which is included as part of this source code package.
 */
 
-#include "visual_point.h"
-#include "feature.h"
 #include <stdexcept>
 #include <vikit/math_utils.h>
+
+#include "fastlivo2/visual_point.h"
+#include "fastlivo2/feature.h"
 
 VisualPoint::VisualPoint(const Vector3d &pos)
     : pos_(pos), previous_normal_(Vector3d::Zero()), normal_(Vector3d::Zero()),

@@ -13,11 +13,17 @@ which is included as part of this source code package.
 #ifndef IMU_PROCESSING_H
 #define IMU_PROCESSING_H
 
+#pragma once
+
+#include <fstream>
 #include <Eigen/Eigen>
-#include "common_lib.h"
 #include <condition_variable>
-#include <nav_msgs/Odometry.h>
 #include <utils/so3_math.h>
+
+#include <nav_msgs/msg/odometry.hpp>
+#include <sensor_msgs/msg/imu.hpp>
+
+#include "fastlivo2/common_lib.h"
 
 const bool time_list(PointType &x,
                      PointType &y); //{return (x.curvature < y.curvature);};
@@ -32,7 +38,7 @@ public:
   ~ImuProcess();
 
   void Reset();
-  void Reset(double start_timestamp, const sensor_msgs::ImuConstPtr &lastimu);
+  void Reset(double start_timestamp, const sensor_msgs::msg::Imu::ConstSharedPtr &lastimu);
   void set_extrinsic(const V3D &transl, const M3D &rot);
   void set_extrinsic(const V3D &transl);
   void set_extrinsic(const MD(4, 4) & T);
@@ -68,7 +74,7 @@ private:
   void IMU_init(const MeasureGroup &meas, StatesGroup &state, int &N);
   void Forward_without_imu(LidarMeasureGroup &meas, StatesGroup &state_inout, PointCloudXYZI &pcl_out);
   PointCloudXYZI pcl_wait_proc;
-  sensor_msgs::ImuConstPtr last_imu;
+  sensor_msgs::msg::Imu::SharedPtr last_imu;
   PointCloudXYZI::Ptr cur_pcl_un_;
   vector<Pose6D> IMUpose;
   M3D Lid_rot_to_IMU;
@@ -85,6 +91,8 @@ private:
   bool gravity_est_en = true;
   bool ba_bg_est_en = true;
   bool exposure_estimate_en = true;
+
+  rclcpp::Logger logger;
 };
 typedef std::shared_ptr<ImuProcess> ImuProcessPtr;
 #endif

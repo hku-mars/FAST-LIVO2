@@ -10,14 +10,15 @@ This file is subject to the terms and conditions outlined in the 'LICENSE' file,
 which is included as part of this source code package.
 */
 
-#include <boost/bind.hpp>
-#include "feature.h"
-#include "frame.h"
-#include "visual_point.h"
 #include <stdexcept>
+
 #include <vikit/math_utils.h>
 #include <vikit/performance_monitor.h>
 #include <vikit/vision.h>
+
+#include "fastlivo2/feature.h"
+#include "fastlivo2/frame.h"
+#include "fastlivo2/visual_point.h"
 
 int Frame::frame_counter_ = 0;
 
