@@ -353,6 +353,12 @@ void ImuProcess::UndistortPcl(LidarMeasureGroup &lidar_meas, StatesGroup &state_
         offs_t = prop_end_time - prop_beg_time;
       }
 
+      if (dt != dt || dt == 0.0)
+      {
+        std::cerr << "ERROR: dt is NaN or zero in IMU Propagation" << std::endl;
+        continue;
+      }
+
       dt_all += dt;
       // printf("[ LIO Propagation ] dt: %lf \n", dt);
 
