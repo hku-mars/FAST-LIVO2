@@ -537,8 +537,6 @@ void VoxelMapManager::BuildVoxelMap()
   int max_points_num = config_setting_.max_points_num_;
   std::vector<int> layer_init_num = config_setting_.layer_init_num_;
 
-  std::vector<pointWithVar> input_points;
-
   for (size_t i = 0; i < feats_down_world_->size(); i++)
   {
     pointWithVar pv;
@@ -552,23 +550,18 @@ void VoxelMapManager::BuildVoxelMap()
           (-point_crossmat) * state_.cov.block<3, 3>(0, 0) * (-point_crossmat).transpose() + state_.cov.block<3, 3>(3, 3);
     pv.var = var;
     input_points.push_back(pv);
-  }
 
-  uint plsize = input_points.size();
-  for (uint i = 0; i < plsize; i++)
-  {
-    const pointWithVar p_v = input_points[i];
     float loc_xyz[3];
     for (int j = 0; j < 3; j++)
     {
-      loc_xyz[j] = p_v.point_w[j] / voxel_size;
+      loc_xyz[j] = pv.point_w[j] / voxel_size;
       if (loc_xyz[j] < 0) { loc_xyz[j] -= 1.0; }
     }
     VOXEL_LOCATION position((int64_t)loc_xyz[0], (int64_t)loc_xyz[1], (int64_t)loc_xyz[2]);
     auto iter = voxel_map_.find(position);
     if (iter != voxel_map_.end())
     {
-      voxel_map_[position]->temp_points_.push_back(p_v);
+      voxel_map_[position]->temp_points_.push_back(pv);
       voxel_map_[position]->new_points_++;
     }
     else
@@ -579,7 +572,7 @@ void VoxelMapManager::BuildVoxelMap()
       voxel_map_[position]->voxel_center_[0] = (0.5 + position.x) * voxel_size;
       voxel_map_[position]->voxel_center_[1] = (0.5 + position.y) * voxel_size;
       voxel_map_[position]->voxel_center_[2] = (0.5 + position.z) * voxel_size;
-      voxel_map_[position]->temp_points_.push_back(p_v);
+      voxel_map_[position]->temp_points_.push_back(pv);
       voxel_map_[position]->new_points_++;
       voxel_map_[position]->layer_init_num_ = layer_init_num;
     }
