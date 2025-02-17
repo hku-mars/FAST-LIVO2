@@ -749,6 +749,13 @@ void LIVMapper::livox_pcl_cbk(const livox_interfaces::msg::CustomMsg::ConstShare
   // RCLCPP_INFO(this->get_logger(), "get point cloud at time: %.6f", msg->header.stamp.);
   PointCloudXYZI::Ptr ptr(new PointCloudXYZI());
   p_pre->process(msg, ptr);
+
+  if (!ptr || ptr->empty()) {
+    ROS_ERROR("Received an empty point cloud");
+    mtx_buffer.unlock();
+    return;
+  }
+
   lid_raw_data_buffer.push_back(ptr);
   lid_header_time_buffer.push_back(cur_head_time);
   last_timestamp_lidar = cur_head_time;
