@@ -447,11 +447,7 @@ void LIVMapper::handleLIO()
 
   if(voxelmap_manager->config_setting_.map_sliding_en)
   {
-    if(voxelmap_manager->mapSliding()) 
-    {
-      // update_local_voxel_map();
-    }
-    // publish_local_voxelmap(local_voxel_clouds_publisher);
+    voxelmap_manager->mapSliding();
   }
   
   PointCloudXYZI::Ptr laserCloudFullRes(dense_map_en ? feats_undistort : feats_down_body);
@@ -466,6 +462,7 @@ void LIVMapper::handleLIO()
 
   if (!img_en) publish_frame_world();
   if (pub_effect_point_en) publish_effect_world(voxelmap_manager->ptpl_list_);
+  if (voxelmap_manager->config_setting_.is_pub_plane_map_) voxelmap_manager->pubVoxelMap();
   publish_path();
   publish_mavros();
 
@@ -751,7 +748,7 @@ void LIVMapper::livox_pcl_cbk(const livox_interfaces::msg::CustomMsg::ConstShare
   p_pre->process(msg, ptr);
 
   if (!ptr || ptr->empty()) {
-    ROS_ERROR("Received an empty point cloud");
+    RCLCPP_ERROR(this->get_logger(), "Received an empty point cloud");
     mtx_buffer.unlock();
     return;
   }
@@ -792,14 +789,14 @@ void LIVMapper::imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr &msg_in)
     return;
   }
 
-  if (last_timestamp_imu > 0.0 && timestamp > last_timestamp_imu + 0.2)
-  {
+  // if (last_timestamp_imu > 0.0 && timestamp > last_timestamp_imu + 0.2)
+  // {
 
-    RCLCPP_WARN(this->get_logger(), "imu time stamp Jumps %0.4lf seconds \n", timestamp - last_timestamp_imu);
-    mtx_buffer.unlock();
-    sig_buffer.notify_all();
-    return;
-  }
+  //   RCLCPP_WARN(this->get_logger(), "imu time stamp Jumps %0.4lf seconds \n", timestamp - last_timestamp_imu);
+  //   mtx_buffer.unlock();
+  //   sig_buffer.notify_all();
+  //   return;
+  // }
 
   last_timestamp_imu = timestamp;
 
