@@ -550,13 +550,11 @@ void LIVMapper::run()
     auto rate = rclcpp::Rate(5000);
     rate.sleep();
     return;
-  }   
+  }
+  
   handleFirstFrame();
-
   processImu();
-
   // if (!p_imu->imu_time_init) continue;
-
   stateEstimationAndMapping();
 }
 
@@ -768,7 +766,6 @@ void LIVMapper::imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr &msg_in)
   if (!imu_en) return;
 
   if (last_timestamp_lidar < 0.0) return;
-  // RCLCPP_INFO(this->get_logger(), "get imu at time: %.6f", msg_in->header.stamp.);
   sensor_msgs::msg::Imu::SharedPtr msg(new sensor_msgs::msg::Imu(*msg_in));
   double timestamp = ros2TimeToDouble2(msg->header.stamp) - imu_time_offset;
   msg->header.stamp = doubleToRos2Time2(timestamp);
@@ -877,7 +874,7 @@ void LIVMapper::img_cbk(const sensor_msgs::msg::Image::ConstSharedPtr &msg_in)
   // cout<<"last_timestamp_img:::"<<last_timestamp_img<<endl;
   mtx_buffer.unlock();
   sig_buffer.notify_all();
-  std::cout << "Image time: " << img_time_correct << std::endl;
+  // std::cout << "Image time: " << img_time_correct << std::endl;
 }
 
 bool LIVMapper::sync_packages(LidarMeasureGroup &meas)

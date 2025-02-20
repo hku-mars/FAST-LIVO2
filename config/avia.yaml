@@ -55,6 +55,7 @@
       max_iterations: 5
       dept_err: 0.02
       beam_err: 0.05
+      sigma_num: 3.0
       min_eigen_value: 0.0025 # 0.005
       voxel_size: 0.5
       max_layer: 2
