@@ -39,7 +39,7 @@ void calcBodyCov(Eigen::Vector3d &pb, const float range_inc, const float degree_
 
 void loadVoxelConfig(rclcpp::Node* node, VoxelMapConfig &voxel_config)
 {
-  node->get_parameter("publish/pub_plane_en", voxel_config.is_pub_plane_map_);
+  node->get_parameter("publish.pub_plane_en", voxel_config.is_pub_plane_map_);
 
   node->get_parameter("lio.max_layer", voxel_config.max_layer_);
   node->get_parameter("lio.voxel_size", voxel_config.max_voxel_size_);
@@ -807,6 +807,8 @@ void VoxelMapManager::pubVoxelMap()
   visualization_msgs::msg::MarkerArray voxel_plane;
   voxel_plane.markers.reserve(1000000);
   std::vector<VoxelPlane> pub_plane_list;
+  std::cout << "voxel_map_.size(): " << voxel_map_.size() << std::endl;
+
   for (auto iter = voxel_map_.begin(); iter != voxel_map_.end(); iter++)
   {
     GetUpdatePlane(iter->second, config_setting_.max_layer_, pub_plane_list);

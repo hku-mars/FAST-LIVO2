@@ -17,7 +17,7 @@ int main(int argc, char **argv)
     auto it = std::make_shared<image_transport::ImageTransport>(node);
     node->initializeSubscribersAndPublishers(*it);
     
-    rclcpp::executors::MultiThreadedExecutor executor;
+    rclcpp::executors::SingleThreadedExecutor executor;
     executor.add_node(node);
 
     while (rclcpp::ok())
