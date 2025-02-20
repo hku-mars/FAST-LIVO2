@@ -41,19 +41,20 @@ void loadVoxelConfig(rclcpp::Node* node, VoxelMapConfig &voxel_config)
 {
   node->get_parameter("publish/pub_plane_en", voxel_config.is_pub_plane_map_);
 
-  node->get_parameter("lio/max_layer", voxel_config.max_layer_);
-  node->get_parameter("lio/voxel_size", voxel_config.max_voxel_size_);
-  node->get_parameter("lio/min_eigen_value", voxel_config.planner_threshold_);
-  node->get_parameter("lio/sigma_num", voxel_config.sigma_num_);
-  node->get_parameter("lio/beam_err", voxel_config.beam_err_);
-  node->get_parameter("lio/dept_err", voxel_config.dept_err_);
-  // node->get_parameter("lio/layer_init_num", voxel_config.layer_init_num_);
-  node->get_parameter("lio/max_points_num", voxel_config.max_points_num_);
-  node->get_parameter("lio/max_iterations", voxel_config.max_iterations_);
+  node->get_parameter("lio.max_layer", voxel_config.max_layer_);
+  node->get_parameter("lio.voxel_size", voxel_config.max_voxel_size_);
+  node->get_parameter("lio.min_eigen_value", voxel_config.planner_threshold_);
+  node->get_parameter("lio.sigma_num", voxel_config.sigma_num_);
+  node->get_parameter("lio.beam_err", voxel_config.beam_err_);
+  node->get_parameter("lio.dept_err", voxel_config.dept_err_);
+  node->get_parameter("lio.max_points_num", voxel_config.max_points_num_);
+  node->get_parameter("lio.max_iterations", voxel_config.max_iterations_);
+  
+  voxel_config.layer_init_num_ = node->get_parameter("lio.layer_init_num").as_integer_array();
 
-  node->get_parameter("local_map/map_sliding_en", voxel_config.map_sliding_en);
-  node->get_parameter("local_map/half_map_size", voxel_config.half_map_size);
-  node->get_parameter("local_map/sliding_thresh", voxel_config.sliding_thresh);
+  node->get_parameter("local_map.map_sliding_en", voxel_config.map_sliding_en);
+  node->get_parameter("local_map.half_map_size", voxel_config.half_map_size);
+  node->get_parameter("local_map.sliding_thresh", voxel_config.sliding_thresh);
 }
 
 void VoxelOctoTree::init_plane(const std::vector<pointWithVar> &points, VoxelPlane *plane)
@@ -542,10 +543,9 @@ void VoxelMapManager::BuildVoxelMap()
   float planer_threshold = config_setting_.planner_threshold_;
   int max_layer = config_setting_.max_layer_;
   int max_points_num = config_setting_.max_points_num_;
-  std::vector<int> layer_init_num = config_setting_.layer_init_num_;
+  std::vector<int64_t> layer_init_num = config_setting_.layer_init_num_;
 
   std::vector<pointWithVar> input_points;
-
   for (size_t i = 0; i < feats_down_world_->size(); i++)
   {
     pointWithVar pv;
@@ -560,7 +560,6 @@ void VoxelMapManager::BuildVoxelMap()
     pv.var = var;
     input_points.push_back(pv);
   }
-
   uint plsize = input_points.size();
   for (uint i = 0; i < plsize; i++)
   {
@@ -580,6 +579,10 @@ void VoxelMapManager::BuildVoxelMap()
     }
     else
     {
+      std::cout << "max_layer: " << max_layer << std::endl;
+      std::cout << "layer_init_num[0]: " << layer_init_num[0] << std::endl;
+      std::cout << "max_points_num: " << max_points_num << std::endl;
+      std::cout << "planer_threshold: " << planer_threshold << std::endl;
       VoxelOctoTree *octo_tree = new VoxelOctoTree(max_layer, 0, layer_init_num[0], max_points_num, planer_threshold);
       voxel_map_[position] = octo_tree;
       voxel_map_[position]->quater_length_ = voxel_size / 4;
@@ -619,7 +622,7 @@ void VoxelMapManager::UpdateVoxelMap(const std::vector<pointWithVar> &input_poin
   float planer_threshold = config_setting_.planner_threshold_;
   int max_layer = config_setting_.max_layer_;
   int max_points_num = config_setting_.max_points_num_;
-  std::vector<int> layer_init_num = config_setting_.layer_init_num_;
+  std::vector<int64_t> layer_init_num = config_setting_.layer_init_num_;
   uint plsize = input_points.size();
   for (uint i = 0; i < plsize; i++)
   {

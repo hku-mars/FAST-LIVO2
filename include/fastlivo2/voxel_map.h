@@ -29,7 +29,7 @@ typedef struct VoxelMapConfig
   double max_voxel_size_;
   int max_layer_;
   int max_iterations_;
-  std::vector<int> layer_init_num_;
+  std::vector<int64_t> layer_init_num_;
   int max_points_num_;
   double planner_threshold_;
   double beam_err_;
@@ -129,7 +129,7 @@ public:
   int octo_state_; // 0 is end of tree, 1 is not
   VoxelOctoTree *leaves_[8];
   double voxel_center_[3]; // x, y, z
-  std::vector<int> layer_init_num_;
+  std::vector<int64_t> layer_init_num_;
   float quater_length_;
   float planer_threshold_;
   int points_size_threshold_;

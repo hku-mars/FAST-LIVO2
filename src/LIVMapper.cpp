@@ -207,7 +207,8 @@ void LIVMapper::initializeFiles()
 
 void LIVMapper::initializeSubscribersAndPublishers(image_transport::ImageTransport &it) 
 {
-  sub_pcl = this->create_subscription<sensor_msgs::msg::PointCloud2>(lid_topic, 200000, std::bind(&LIVMapper::standard_pcl_cbk, this, std::placeholders::_1));
+  sub_pcl = this->create_subscription<livox_interfaces::msg::CustomMsg>(lid_topic, 200000, std::bind(&LIVMapper::livox_pcl_cbk, this, std::placeholders::_1));
+  // sub_pcl = this->create_subscription<sensor_msgs::msg::PointCloud2>(lid_topic, 200000, std::bind(&LIVMapper::standard_pcl_cbk, this, std::placeholders::_1));
   sub_imu = this->create_subscription<sensor_msgs::msg::Imu>(imu_topic, 200000, std::bind(&LIVMapper::imu_cbk, this, std::placeholders::_1));
   sub_img = this->create_subscription<sensor_msgs::msg::Image>(img_topic, 200000, std::bind(&LIVMapper::img_cbk, this, std::placeholders::_1));
 
@@ -356,8 +357,7 @@ void LIVMapper::handleLIO()
            << _state.pos_end.transpose() << " " << _state.vel_end.transpose() << " " << _state.bias_g.transpose() << " "
            << _state.bias_a.transpose() << " " << V3D(_state.inv_expo_time, 0, 0).transpose() << endl;
            
-  if (feats_undistort->empty() || (feats_undistort == nullptr)) 
-  {
+  if (feats_undistort->empty() || (feats_undistort == nullptr)) {
     std::cout << "[ LIO ]: No point!!!" << std::endl;
     return;
   }
@@ -368,7 +368,7 @@ void LIVMapper::handleLIO()
   downSizeFilterSurf.filter(*feats_down_body);
   
   double t_down = omp_get_wtime();
-
+  
   feats_down_size = feats_down_body->points.size();
   voxelmap_manager->feats_down_body_ = feats_down_body;
   transformLidar(_state.rot_end, _state.pos_end, feats_down_body, feats_down_world);
@@ -378,9 +378,9 @@ void LIVMapper::handleLIO()
   if (!lidar_map_inited) 
   {
     lidar_map_inited = true;
-    voxelmap_manager->BuildVoxelMap();
+    voxelmap_manager->BuildVoxelMap(); //segfault here
   }
-
+  
   double t1 = omp_get_wtime();
 
   voxelmap_manager->StateEstimation(state_propagat);
@@ -546,9 +546,8 @@ void LIVMapper::savePCD()
 // make timer 
 void LIVMapper::run() 
 {
-  rclcpp::Rate rate(100);
-  if (!sync_packages(LidarMeasures)) 
-  {
+  if (!sync_packages(LidarMeasures)) {
+    auto rate = rclcpp::Rate(5000);
     rate.sleep();
     return;
   }   
@@ -602,7 +601,7 @@ void LIVMapper::imu_prop_callback()
       {
         double t_from_lidar_end_time = ros2TimeToDouble2(prop_imu_buffer[i].header.stamp) - latest_ekf_time;
         double dt = t_from_lidar_end_time - last_t_from_lidar_end_time;
-        // cout << "prop dt" << dt << ", " << t_from_lidar_end_time << ", " << last_t_from_lidar_end_time << endl;
+        cout << "prop dt" << dt << ", " << t_from_lidar_end_time << ", " << last_t_from_lidar_end_time << endl;
         V3D acc_imu(prop_imu_buffer[i].linear_acceleration.x, prop_imu_buffer[i].linear_acceleration.y, prop_imu_buffer[i].linear_acceleration.z);
         V3D omg_imu(prop_imu_buffer[i].angular_velocity.x, prop_imu_buffer[i].angular_velocity.y, prop_imu_buffer[i].angular_velocity.z);
         prop_imu_once(imu_propagate, dt, acc_imu, omg_imu);
@@ -753,6 +752,9 @@ void LIVMapper::livox_pcl_cbk(const livox_interfaces::msg::CustomMsg::ConstShare
     return;
   }
 
+  // save as pcd
+  pcl::io::savePCDFileASCII ("test_pcd.pcd", *ptr);
+
   lid_raw_data_buffer.push_back(ptr);
   lid_header_time_buffer.push_back(cur_head_time);
   last_timestamp_lidar = cur_head_time;
@@ -875,6 +877,7 @@ void LIVMapper::img_cbk(const sensor_msgs::msg::Image::ConstSharedPtr &msg_in)
   // cout<<"last_timestamp_img:::"<<last_timestamp_img<<endl;
   mtx_buffer.unlock();
   sig_buffer.notify_all();
+  std::cout << "Image time: " << img_time_correct << std::endl;
 }
 
 bool LIVMapper::sync_packages(LidarMeasureGroup &meas)

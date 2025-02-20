@@ -14,6 +14,7 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <geometry_msgs/msg/quaternion.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <livox_interfaces/msg/custom_msg.hpp>
 
 // #include <vikit/camera_loader.h>
 #include <mutex>
@@ -173,7 +174,8 @@ public:
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr voxel_pub;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pubNormal;
 
-  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_pcl;
+  // rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_pcl;
+  rclcpp::Subscription<livox_interfaces::msg::CustomMsg>::SharedPtr sub_pcl;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr sub_imu;
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr sub_img;
   rclcpp::TimerBase::SharedPtr imu_prop_timer;

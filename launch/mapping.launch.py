@@ -25,7 +25,6 @@ def generate_launch_description():
         executable='fastlivo_mapping',
         output='screen',
         parameters=[config]
-            
     )
 
     # RViz node

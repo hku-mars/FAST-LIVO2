@@ -23,6 +23,7 @@ int main(int argc, char **argv)
     while (rclcpp::ok())
     {
         executor.spin_once();
+        node->run();
     }
     node->savePCD();
 

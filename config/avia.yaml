@@ -64,7 +64,7 @@
     local_map:
       map_sliding_en: false
       half_map_size: 100
-      sliding_thresh: 8
+      sliding_thresh: 8.0
 
     uav:
       imu_rate_odom: false
@@ -72,8 +72,8 @@
 
     publish:
       dense_map_en: true
-      pub_effect_point_en: false 
-      pub_plane_en: false
+      pub_effect_point_en: true 
+      pub_plane_en: true
       pub_scan_num: 1
       blind_rgb_points: 0.0
 
