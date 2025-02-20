@@ -66,6 +66,11 @@
       half_map_size: 100
       sliding_thresh: 8.0
 
+    time_offset:
+      imu_time_offset: 0.0
+      img_time_offset: 0.0
+      exposure_time_init: 0.0
+
     uav:
       imu_rate_odom: false
       gravity_align_en: false

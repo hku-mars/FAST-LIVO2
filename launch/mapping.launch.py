@@ -19,6 +19,12 @@ def generate_launch_description():
         'avia.yaml'
     )
 
+    rviz_config = os.path.join(
+        get_package_share_directory('fastlivo2'),
+        'rviz',
+        'fast_livo2.rviz'
+    )
+
     # Load parameters
     slam_node = Node(
         package='fastlivo2',
@@ -33,7 +39,7 @@ def generate_launch_description():
             package='rviz2',
             executable='rviz2',
             name='rviz',
-            arguments=['-d', '$(find fast_livo)/rviz_cfg/fast_livo2.rviz'],
+            arguments=['-d', rviz_config],
             output='screen'
         )
     ])
