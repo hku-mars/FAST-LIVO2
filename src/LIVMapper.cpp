@@ -264,6 +264,7 @@ void LIVMapper::stateEstimationAndMapping()
       handleVIO();
       break;
     case LIO:
+    case LO:
       handleLIO();
       break;
   }
@@ -526,7 +527,7 @@ void LIVMapper::run()
     {
       rate.sleep();
       continue;
-    }   
+    }
     handleFirstFrame();
 
     processImu();
@@ -1054,6 +1055,31 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
     }
       // return false;
     }
+    break;
+  }
+
+  case ONLY_LO:
+  {
+    if (!lidar_pushed) 
+    { 
+      // If not in lidar scan, need to generate new meas
+      if (lid_raw_data_buffer.empty())  return false;
+      meas.lidar = lid_raw_data_buffer.front(); // push the first lidar topic
+      meas.lidar_frame_beg_time = lid_header_time_buffer.front(); // generate lidar_beg_time
+      meas.lidar_frame_end_time  = meas.lidar_frame_beg_time + meas.lidar->points.back().curvature / double(1000); // calc lidar scan end time
+      lidar_pushed = true;             
+    }
+    struct MeasureGroup m; // standard method to keep imu message.
+    m.lio_time = meas.lidar_frame_end_time;
+    mtx_buffer.lock();
+    lid_raw_data_buffer.pop_front();
+    lid_header_time_buffer.pop_front();
+    mtx_buffer.unlock();
+    sig_buffer.notify_all();
+    lidar_pushed = false; // sync one whole lidar scan.
+    meas.lio_vio_flg = LO; // process lidar topic, so timestamp should be lidar scan end.
+    meas.measures.push_back(m);
+    return true;
     break;
   }
 
