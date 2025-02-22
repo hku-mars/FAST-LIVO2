@@ -191,14 +191,14 @@ void ImuProcess::Forward_without_imu(LidarMeasureGroup &meas, StatesGroup &state
   cov_w.setZero();
 
   F_x.block<3, 3>(0, 0) = Exp(state_inout.bias_g, -dt);
-  F_x.block<3, 3>(0, 9) = Eye3d * dt;
-  F_x.block<3, 3>(3, 6) = Eye3d * dt;
+  F_x.block<3, 3>(0, 10) = Eye3d * dt;
+  F_x.block<3, 3>(3, 7) = Eye3d * dt;
   // F_x.block<3, 3>(6, 0)  = - R_imu * acc_avr_skew * dt;
   // F_x.block<3, 3>(6, 12) = - R_imu * dt;
   // F_x.block<3, 3>(6, 15) = Eye3d * dt;
 
-  cov_w.block<3, 3>(9, 9).diagonal() = cov_gyr * dt * dt; // for omega in constant model
-  cov_w.block<3, 3>(6, 6).diagonal() = cov_acc * dt * dt; // for velocity in constant model
+  cov_w.block<3, 3>(10, 10).diagonal() = cov_gyr * dt * dt; // for omega in constant model
+  cov_w.block<3, 3>(7, 7).diagonal() = cov_acc * dt * dt; // for velocity in constant model
   // cov_w.block<3, 3>(6, 6) =
   //     R_imu * cov_acc.asDiagonal() * R_imu.transpose() * dt * dt;
   // cov_w.block<3, 3>(9, 9).diagonal() =
