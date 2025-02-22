@@ -136,6 +136,7 @@ public:
   PointCloudXYZI::Ptr pcl_w_wait_pub;
   PointCloudXYZI::Ptr pcl_wait_pub;
   PointCloudXYZRGB::Ptr pcl_wait_save;
+  PointCloudXYZI::Ptr pcl_wait_save_intensity;
 
   ofstream fout_pre, fout_out, fout_pcd_pos, fout_points;
 
