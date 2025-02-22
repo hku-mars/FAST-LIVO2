@@ -692,6 +692,7 @@ void LIVMapper::standard_pcl_cbk(const sensor_msgs::PointCloud2::ConstPtr &msg)
   lid_raw_data_buffer.push_back(ptr);
   lid_header_time_buffer.push_back(msg->header.stamp.toSec());
   last_timestamp_lidar = msg->header.stamp.toSec();
+  printf("1\n");
 
   mtx_buffer.unlock();
   sig_buffer.notify_all();

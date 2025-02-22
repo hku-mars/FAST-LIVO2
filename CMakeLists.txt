@@ -99,6 +99,10 @@ find_package(PCL REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(Sophus REQUIRED)
 find_package(Boost REQUIRED COMPONENTS thread)
+find_package(rs_driver REQUIRED)
+
+set(Sophus_LIBRARIES "/usr/local/lib/libSophus.so")
+set(Sophus_INCLUDE_DIRS "/usr/local/include")
 
 # Define the catkin package
 catkin_package(
@@ -113,6 +117,7 @@ include_directories(
   ${PCL_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${Sophus_INCLUDE_DIRS}
+  ${rs_driver_INCLUDE_DIRS}
   include
 )
 
@@ -139,6 +144,15 @@ target_link_libraries(fastlivo_mapping
   ${Sophus_LIBRARIES}
   ${Boost_LIBRARIES}
 )
+
+# Add preprocess executable
+add_executable(rs_velodyne src/preprocess/rs_to_velodyne.cpp)
+add_dependencies(rs_velodyne ${catkin_EXPORTED_TARGETS})
+target_link_libraries(rs_velodyne ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} ${rs_driver_LIBRARIES})
+
+add_executable(hesai_velodyne src/preprocess/hesai_to_velodyne.cpp)
+add_dependencies(hesai_velodyne ${catkin_EXPORTED_TARGETS})
+target_link_libraries(hesai_velodyne ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES})
 
 # Link mimalloc if found
 if(mimalloc_FOUND)
