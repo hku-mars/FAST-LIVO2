@@ -1694,7 +1694,7 @@ void VIOManager::updateFrameState(StatesGroup state)
   V3D Pwi(state.pos_end);
   Rcw = Rci * Rwi.transpose();
   Pcw = -Rci * Rwi.transpose() * Pwi + Pci;
-  new_frame_->T_f_w_ = SE3(Rcw, Pcw);
+  new_frame_->T_f_w_ = SE3(Eigen::Quaterniond(Rcw).normalized().toRotationMatrix(), Pcw);  // avoid R is not orthogonal
 }
 
 void VIOManager::plotTrackedPoints()
