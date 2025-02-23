@@ -12,6 +12,7 @@ which is included as part of this source code package.
 
 #include "vio.h"
 
+using namespace Eigen;
 VIOManager::VIOManager()
 {
   // downSizeFilter.setLeafSize(0.2, 0.2, 0.2);
@@ -250,12 +251,12 @@ void VIOManager::insertPointIntoVoxelMap(VisualPoint *pt_new)
 }
 
 void VIOManager::getWarpMatrixAffineHomography(const vk::AbstractCamera &cam, const V2D &px_ref, const V3D &xyz_ref, const V3D &normal_ref,
-                                                  const SE3 &T_cur_ref, const int level_ref, Matrix2d &A_cur_ref)
+                                                  const SE3<double> &T_cur_ref, const int level_ref, Matrix2d &A_cur_ref)
 {
   // create homography matrix
   const V3D t = T_cur_ref.inverse().translation();
   const Eigen::Matrix3d H_cur_ref =
-      T_cur_ref.rotation_matrix() * (normal_ref.dot(xyz_ref) * Eigen::Matrix3d::Identity() - t * normal_ref.transpose());
+      T_cur_ref.rotationMatrix() * (normal_ref.dot(xyz_ref) * Eigen::Matrix3d::Identity() - t * normal_ref.transpose());
   // Compute affine warp matrix A_ref_cur using homography projection
   const int kHalfPatchSize = 4;
   V3D f_du_ref(cam.cam2world(px_ref + Eigen::Vector2d(kHalfPatchSize, 0) * (1 << level_ref)));
@@ -273,7 +274,7 @@ void VIOManager::getWarpMatrixAffineHomography(const vk::AbstractCamera &cam, co
 }
 
 void VIOManager::getWarpMatrixAffine(const vk::AbstractCamera &cam, const Vector2d &px_ref, const Vector3d &f_ref, const double depth_ref,
-                                        const SE3 &T_cur_ref, const int level_ref, const int pyramid_level, const int halfpatch_size,
+                                        const SE3<double> &T_cur_ref, const int level_ref, const int pyramid_level, const int halfpatch_size,
                                         Matrix2d &A_cur_ref)
 {
   // Compute affine warp matrix A_ref_cur
@@ -457,7 +458,7 @@ void VIOManager::retrieveFromVisualSparseMap(cv::Mat img, vector<pointWithVar> &
         if (pt == nullptr) continue;
         if (pt->obs_.size() == 0) continue;
 
-        V3D norm_vec(new_frame_->T_f_w_.rotation_matrix() * pt->normal_);
+        V3D norm_vec(new_frame_->T_f_w_.rotationMatrix() * pt->normal_);
         V3D dir(new_frame_->T_f_w_ * pt->pos_);
         if (dir[2] < 0) continue;
         // dir.normalize();
@@ -535,7 +536,7 @@ void VIOManager::retrieveFromVisualSparseMap(cv::Mat img, vector<pointWithVar> &
             // sub_map_ray.push_back(pt); // cloud_visual_sub_map
             // add_sample = true;
 
-            V3D norm_vec(new_frame_->T_f_w_.rotation_matrix() * pt->normal_);
+            V3D norm_vec(new_frame_->T_f_w_.rotationMatrix() * pt->normal_);
             V3D dir(new_frame_->T_f_w_ * pt->pos_);
             if (dir[2] < 0) continue;
             dir.normalize();
@@ -698,7 +699,7 @@ void VIOManager::retrieveFromVisualSparseMap(cv::Mat img, vector<pointWithVar> &
 
       if (normal_en)
       {
-        V3D norm_vec = (ref_ftr->T_f_w_.rotation_matrix() * pt->normal_).normalized();
+        V3D norm_vec = (ref_ftr->T_f_w_.rotationMatrix() * pt->normal_).normalized();
         
         V3D pf(ref_ftr->T_f_w_ * pt->pos_);
         // V3D pf_norm = pf.normalized();
@@ -864,7 +865,7 @@ void VIOManager::generateVisualMapPoints(cv::Mat img, vector<pointWithVar> &pg)
       pointWithVar pt_var = append_voxel_points[i];
       V3D pt = pt_var.point_w;
 
-      V3D norm_vec(new_frame_->T_f_w_.rotation_matrix() * pt_var.normal);
+      V3D norm_vec(new_frame_->T_f_w_.rotationMatrix() * pt_var.normal);
       V3D dir(new_frame_->T_f_w_ * pt);
       dir.normalize();
       double cos_theta = dir.dot(norm_vec);
@@ -935,7 +936,7 @@ void VIOManager::updateVisualMapPoints(cv::Mat img)
     SE3 pose_ref = last_feature->T_f_w_;
     SE3 delta_pose = pose_ref * pose_cur.inverse();
     double delta_p = delta_pose.translation().norm();
-    double delta_theta = (delta_pose.rotation_matrix().trace() > 3.0 - 1e-6) ? 0.0 : std::acos(0.5 * (delta_pose.rotation_matrix().trace() - 1));
+    double delta_theta = (delta_pose.rotationMatrix().trace() > 3.0 - 1e-6) ? 0.0 : std::acos(0.5 * (delta_pose.rotationMatrix().trace() - 1));
     if (delta_p > 0.5 || delta_theta > 0.3) add_flag = true; // 0.5 || 0.3
 
     // Step 3: pixel distance
@@ -1046,7 +1047,7 @@ void VIOManager::updateReferencePatch(const unordered_map<VOXEL_LOCATION, VoxelO
       int count = 0;
 
       V3D pf = ref_patch_temp->T_f_w_ * pt->pos_;
-      V3D norm_vec = ref_patch_temp->T_f_w_.rotation_matrix() * pt->normal_;
+      V3D norm_vec = ref_patch_temp->T_f_w_.rotationMatrix() * pt->normal_;
       pf.normalize();
       double cos_angle = pf.dot(norm_vec);
       // if(fabs(cos_angle) < 0.86) continue; // 20 degree
@@ -1136,7 +1137,7 @@ void VIOManager::projectPatchFromRefToCur(const unordered_map<VOXEL_LOCATION, Vo
       V2D pc(new_frame_->w2c(pt->pos_));
       V2D pc_prior(new_frame_->w2c_prior(pt->pos_));
 
-      V3D norm_vec(ref_ftr->T_f_w_.rotation_matrix() * pt->normal_);
+      V3D norm_vec(ref_ftr->T_f_w_.rotationMatrix() * pt->normal_);
       V3D pf(ref_ftr->T_f_w_ * pt->pos_);
 
       if (pf.dot(norm_vec) < 0) norm_vec = -norm_vec;
@@ -1350,7 +1351,7 @@ void VIOManager::precomputeReferencePatches(int level)
     double depth((pt->pos_ - pt->ref_patch->pos()).norm());
     V3D pf = pt->ref_patch->f_ * depth;
     V2D pc = pt->ref_patch->px_;
-    M3D R_ref_w = pt->ref_patch->T_f_w_.rotation_matrix();
+    M3D R_ref_w = pt->ref_patch->T_f_w_.rotationMatrix();
 
     computeProjectionJacobian(pf, Jdpi);
     p_w_hat << SKEW_SYM_MATRX(pt->pos_);
@@ -1771,7 +1772,7 @@ void VIOManager::dumpDataForColmap()
   pinhole_cam->undistortImage(img_rgb, img_rgb_undistort);
   cv::imwrite(image_path, img_rgb_undistort);
   
-  Eigen::Quaterniond q(new_frame_->T_f_w_.rotation_matrix());
+  Eigen::Quaterniond q(new_frame_->T_f_w_.rotationMatrix());
   Eigen::Vector3d t = new_frame_->T_f_w_.translation();
   fout_colmap << cnt << " "
             << std::fixed << std::setprecision(6)  // 保证浮点数精度为6位
