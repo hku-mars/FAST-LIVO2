@@ -805,7 +805,7 @@ void LIVMapper::livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::ConstShar
   p_pre->process(msg, ptr);
 
   if (!ptr || ptr->empty()) {
-    ROS_ERROR("Received an empty point cloud");
+    RCLCPP_ERROR(this->node->get_logger(), "Received an empty point cloud");
     mtx_buffer.unlock();
     return;
   }
