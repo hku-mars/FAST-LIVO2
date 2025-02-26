@@ -186,7 +186,7 @@ void LIVMapper::initializeComponents(rclcpp::Node::SharedPtr &node)
   voxelmap_manager->extT_ << VEC_FROM_ARRAY(extrinT);
   voxelmap_manager->extR_ << MAT_FROM_ARRAY(extrinR);
 
-  if (!vk::camera_loader::loadFromRosNs(this->node, "laserMapping", vio_manager->cam)) throw std::runtime_error("Camera model not correctly specified.");
+  if (!vk::camera_loader::loadFromRosNs(this->node, "parameter_blackboard", vio_manager->cam)) throw std::runtime_error("Camera model not correctly specified.");
 
   vio_manager->grid_size = grid_size;
   vio_manager->patch_size = patch_size;

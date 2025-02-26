@@ -61,16 +61,16 @@ def generate_launch_description():
         # ),
 
         # use parameter_blackboard as global parameters server and load camera params
-        # Node(
-        #     package='demo_nodes_cpp',
-        #     executable='parameter_blackboard',
-        #     name='parameter_blackboard',
-        #     # namespace='laserMapping',
-        #     parameters=[
-        #         camera_params_file
-        #     ],
-        #     output='screen'
-        # ),
+        Node(
+            package='demo_nodes_cpp',
+            executable='parameter_blackboard',
+            name='parameter_blackboard',
+            # namespace='laserMapping',
+            parameters=[
+                camera_params_file,
+            ],
+            output='screen'
+        ),
 
         # republish compressed image to raw image
         # https://robotics.stackexchange.com/questions/110939/how-do-i-remap-compressed-video-to-raw-video-in-ros2
