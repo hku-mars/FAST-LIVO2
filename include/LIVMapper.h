@@ -116,7 +116,7 @@ public:
   int lidar_en = 1;
   bool is_first_frame = false;
   int grid_size, patch_size, grid_n_width, grid_n_height, patch_pyrimid_level;
-  double outlier_threshold;
+  int outlier_threshold;
   double plot_time;
   int frame_cnt;
   double img_time_offset = 0.0;
@@ -130,7 +130,7 @@ public:
   vector<double> extrinR;
   vector<double> cameraextrinT;
   vector<double> cameraextrinR;
-  double IMG_POINT_COV;
+  int IMG_POINT_COV;
 
   PointCloudXYZI::Ptr visual_sub_map;
   PointCloudXYZI::Ptr feats_undistort;

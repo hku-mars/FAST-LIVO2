@@ -10,7 +10,9 @@
 
     extrin_calib:
       extrinsic_T: [0.04165, 0.02326, -0.0284]
-      extrinsic_R: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+      extrinsic_R: [1.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0,
+                    0.0, 0.0, 1.0]
       Rcl: [0.00610193,-0.999863,-0.0154172,
             -0.00615449,0.0153796,-0.999863,
             0.999962,0.00619598,-0.0060598] 
@@ -61,7 +63,7 @@
     local_map:  
       map_sliding_en: false
       half_map_size: 100
-      sliding_thresh: 8
+      sliding_thresh: 8.0
 
     uav:
       imu_rate_odom: false

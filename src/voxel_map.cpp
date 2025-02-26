@@ -36,36 +36,36 @@ void calcBodyCov(Eigen::Vector3d &pb, const float range_inc, const float degree_
 void loadVoxelConfig(rclcpp::Node::SharedPtr &node, VoxelMapConfig &voxel_config)
 {
   // declare parameter
-  node->declare_parameter<bool>("publish/pub_plane_en", false);
-  node->declare_parameter<int>("lio/max_layer", 1);
-  node->declare_parameter<double>("lio/voxel_size", 0.5);
-  node->declare_parameter<double>("lio/min_eigen_value", 0.01);
-  node->declare_parameter<double>("lio/sigma_num", 3);
-  node->declare_parameter<double>("lio/beam_err", 0.02);
-  node->declare_parameter<double>("lio/dept_err", 0.05);
+  node->declare_parameter<bool>("publish.pub_plane_en", false);
+  node->declare_parameter<int>("lio.max_layer", 1);
+  node->declare_parameter<double>("lio.voxel_size", 0.5);
+  node->declare_parameter<double>("lio.min_eigen_value", 0.01);
+  node->declare_parameter<double>("lio.sigma_num", 3);
+  node->declare_parameter<double>("lio.beam_err", 0.02);
+  node->declare_parameter<double>("lio.dept_err", 0.05);
 
   // Declaration of parameter of type std::vector<int> won't build, https://github.com/ros2/rclcpp/issues/1585  
-  node->declare_parameter<vector<int64_t>>("lio/layer_init_num", std::vector<int64_t>{5,5,5,5,5}); 
-  node->declare_parameter<int>("lio/max_points_num", 50);
-  node->declare_parameter<int>("lio/min_iterations", 5);
-  node->declare_parameter<bool>("local_map/map_sliding_en", false);
-  node->declare_parameter<int>("local_map/half_map_size", 100);
-  node->declare_parameter<double>("local_map/sliding_thresh", 8);
+  node->declare_parameter<vector<int64_t>>("lio.layer_init_num", std::vector<int64_t>{5,5,5,5,5}); 
+  node->declare_parameter<int>("lio.max_points_num", 50);
+  node->declare_parameter<int>("lio.min_iterations", 5);
+  node->declare_parameter<bool>("local_map.map_sliding_en", false);
+  node->declare_parameter<int>("local_map.half_map_size", 100);
+  node->declare_parameter<double>("local_map.sliding_thresh", 8.0);
 
   // get parameter
-  node->get_parameter("publish/pub_plane_en", voxel_config.is_pub_plane_map_);
-  node->get_parameter("lio/max_layer", voxel_config.max_layer_);
-  node->get_parameter("lio/voxel_size", voxel_config.max_voxel_size_);
-  node->get_parameter("lio/min_eigen_value", voxel_config.planner_threshold_);
-  node->get_parameter("lio/sigma_num", voxel_config.sigma_num_);
-  node->get_parameter("lio/beam_err", voxel_config.beam_err_);
-  node->get_parameter("lio/dept_err", voxel_config.dept_err_);
-  node->get_parameter("lio/layer_init_num", voxel_config.layer_init_num_);
-  node->get_parameter("lio/max_points_num", voxel_config.max_points_num_);
-  node->get_parameter("lio/min_iterations", voxel_config.max_iterations_);
-  node->get_parameter("local_map/map_sliding_en", voxel_config.map_sliding_en);
-  node->get_parameter("local_map/half_map_size", voxel_config.half_map_size);
-  node->get_parameter("local_map/sliding_thresh", voxel_config.sliding_thresh);
+  node->get_parameter("publish.pub_plane_en", voxel_config.is_pub_plane_map_);
+  node->get_parameter("lio.max_layer", voxel_config.max_layer_);
+  node->get_parameter("lio.voxel_size", voxel_config.max_voxel_size_);
+  node->get_parameter("lio.min_eigen_value", voxel_config.planner_threshold_);
+  node->get_parameter("lio.sigma_num", voxel_config.sigma_num_);
+  node->get_parameter("lio.beam_err", voxel_config.beam_err_);
+  node->get_parameter("lio.dept_err", voxel_config.dept_err_);
+  node->get_parameter("lio.layer_init_num", voxel_config.layer_init_num_);
+  node->get_parameter("lio.max_points_num", voxel_config.max_points_num_);
+  node->get_parameter("lio.min_iterations", voxel_config.max_iterations_);
+  node->get_parameter("local_map.map_sliding_en", voxel_config.map_sliding_en);
+  node->get_parameter("local_map.half_map_size", voxel_config.half_map_size);
+  node->get_parameter("local_map.sliding_thresh", voxel_config.sliding_thresh);
 }
 
 void VoxelOctoTree::init_plane(const std::vector<pointWithVar> &points, VoxelPlane *plane)
