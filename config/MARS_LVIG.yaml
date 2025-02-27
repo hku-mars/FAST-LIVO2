@@ -1,0 +1,110 @@
+common:
+  img_topic: "/left_camera/image"
+  lid_topic: "/livox/lidar"
+  imu_topic: "/livox/imu"
+  img_en: 1
+  lidar_en: 1
+  ros_driver_bug_fix: false
+
+extrin_calib:
+  extrinsic_T: [0.04165, 0.02326, -0.0284]
+  extrinsic_R: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+  # MARS_LVIG HKisland HKairport
+  Rcl: [0.00438814,-0.999807,-0.0191582,
+        -0.00978695,0.0191145,-0.999769,
+        0.999942,0.00457463,-0.00970118]
+  Pcl: [0.016069, 0.0871753, -0.0718021]
+  # MARS_LVIG AMtown AMvalley
+  # Rcl: [ -0.0022464, -0.9997299, -0.0231319,
+  #        -0.0084211,  0.0231501, -0.9996966,
+  #         0.9999620, -0.0020509, -0.0084708]
+  # Pcl: [-0.0025563, 0.0567484, -0.0512149]
+
+time_offset: 
+  imu_time_offset: 0.0
+  img_time_offset: -0.1
+  exposure_time_init: 0.0
+# ╔═══════════════════════════════════════════════════════════════════════════════════════╗
+# ║                     Configuration Settings                                            ║
+# ╠═══════════════════════════════════════════════════════════════════════════════════════╣
+# ║    Series   │      ID     │ img_time_offset │ exposure_time_init │  -s (start hover)  ║
+# ╠═══════════════════════════════════════════════════════════════════════════════════════╣
+# ║  HKairport  │ HKairport01 │       0.1       │         0.0        │         75         ║
+# ║             │ HKairport02 │      -0.1       │         0.0        │         60         ║
+# ║             │ HKairport03 │      -0.1       │         0.0        │         62         ║
+# ╠═══════════════════════════════════════════════════════════════════════════════════════╣
+# ║  HKisland   │ HKisland01  │       0.0       │         0.0        │        118         ║
+# ║             │ HKisland02  │       0.1       │         0.0        │         80         ║
+# ║             │ HKisland03  │      -0.1       │         0.0        │         72         ║
+# ╠═══════════════════════════════════════════════════════════════════════════════════════╣
+# ║  AMtown     │ AMtown01    │      -0.1       │       0.0285       │         75         ║
+# ║             │ AMtown02    │      -0.1       │       0.0285       │         50         ║
+# ║             │ AMtown03    │      -0.1       │       0.0285       │        106         ║
+# ╠═══════════════════════════════════════════════════════════════════════════════════════╣
+# ║  AMvalley   │ AMvalley01  │      -0.1       │       0.0132       │         70         ║
+# ║             │ AMvalley02  │      -0.1       │       0.0132       │         65         ║
+# ║             │ AMvalley03  │      -0.1       │       0.0132       │         68         ║
+# ╚═══════════════════════════════════════════════════════════════════════════════════════╝
+preprocess:
+  point_filter_num: 1
+  filter_size_surf: 0.1
+  lidar_type: 1 # Livox Avia LiDAR
+  scan_line: 6
+  blind: 0.8
+
+vio:
+  max_iterations: 5
+  outlier_threshold: 1000 # 78 100 156 #100 200 500 700 infinite
+  img_point_cov: 1000 # 100 1000 
+  patch_size: 8
+  patch_pyrimid_level: 4
+  normal_en: true
+  raycast_en: false
+  inverse_composition_en: false
+  exposure_estimate_en: true
+  inv_expo_cov: 0.1
+
+imu:
+  imu_en: true
+  imu_int_frame: 30
+  acc_cov: 2.0 # 0.5
+  gyr_cov: 0.1 # 0.3
+  b_acc_cov: 0.0001 # 0.1
+  b_gyr_cov: 0.0001 # 0.1
+
+lio:
+  max_iterations: 5
+  dept_err: 0.02
+  beam_err: 0.05
+  min_eigen_value: 0.005
+  voxel_size: 2.0 # 1.0
+  max_layer: 2
+  max_points_num: 50
+  layer_init_num: [5, 5, 5, 5, 5]
+
+local_map:  
+  map_sliding_en: false
+  half_map_size: 100
+  sliding_thresh: 8
+
+uav:
+  imu_rate_odom: false
+  gravity_align_en: false
+
+publish:
+  dense_map_en: true
+  pub_effect_point_en: false 
+  pub_plane_en: false
+  pub_scan_num: 1
+  blind_rgb_points: 0.0
+
+evo:
+  seq_name: "HKisland03"
+  pose_output_en: false
+
+pcd_save:
+  pcd_save_en: false
+  colmap_output_en: false # need to set interval = -1
+  filter_size_pcd: 0.15
+  interval: -1
+  # how many LiDAR frames saved in each pcd file;
