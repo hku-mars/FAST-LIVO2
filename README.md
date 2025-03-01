@@ -1,6 +1,8 @@
-# FAST-LIVO2
+# FAST-LIVO2 ROS2 HUMBLE
 
 ## FAST-LIVO2: Fast, Direct LiDAR-Inertial-Visual Odometry
+
+Thanks to hku mars lab chunran zheng for the open source excellent work
 
 ### 📢 News
 
@@ -41,7 +43,7 @@ Our associate dataset [**FAST-LIVO2-Dataset**](https://connecthkuhk-my.sharepoin
 
 ### 2.1 Ubuntu and ROS
 
-Ubuntu 16.04~20.04.  [ROS Installation](http://wiki.ros.org/ROS/Installation).
+Ubuntu 22.04.  [ROS Installation](http://wiki.ros.org/ROS/Installation).
 
 ### 2.2 PCL && Eigen && OpenCV
 
@@ -64,41 +66,106 @@ make
 sudo make install
 ```
 
+if build fails due to `so2.cpp:32:26: error: lvalue required as left operand of assignment`, modify the code as follows:
+
+**so2.cpp**
+```diff
+namespace Sophus
+{
+
+SO2::SO2()
+{
+-  unit_complex_.real() = 1.;
+-  unit_complex_.imag() = 0.;
++  unit_complex_.real(1.);
++  unit_complex_.imag(0.);
+}
+```
+
 ### 2.4 Vikit
 
 Vikit contains camera models, some math and interpolation functions that we need. Vikit is a catkin project, therefore, download it into your catkin workspace source folder.
 
+For well-known reasons, ROS2 does not have a direct global parameter server and a simple method to obtain the corresponding parameters. For details, please refer to https://discourse.ros.org/t/ros2-global-parameter-server-status/10114/11. I use a special way to get camera parameters in Vikit. While the method I've provided so far is quite simple and not perfect, it meets my needs. More contributions to improve `rpg_vikit` are hoped.
+
 ```bash
 # Different from the one used in fast-livo1
-cd catkin_ws/src
-git clone https://github.com/xuankuzcr/rpg_vikit.git 
+cd fast_ws/src
+git clone https://github.com/Robotic-Developer-Road/rpg_vikit.git 
 ```
 
-### 2.5 **livox_ros_driver**
+Thanks to the following repositories for the code reference:
 
-Follow [livox_ros_driver Installation](https://github.com/Livox-SDK/livox_ros_driver).
+- [uzh-rpg/rpg_vikit](https://github.com/uzh-rpg/rpg_vikit)
+- [xuankuzcr/rpg_vikit](https://github.com/xuankuzcr/rpg_vikit)
+- [uavfly/vikit](https://github.com/uavfly/vikit)
+
+### 2.5 **livox_ros_driver2**
+
+Follow [livox_ros_driver2 Installation](https://github.com/Livox-SDK/livox_ros_driver2).
+
+why not use `livox_ros_driver`? Because it is not compatible with ROS2 directly. actually i am not think there s any difference between [livox ros driver](https://github.com/Livox-SDK/livox_ros_driver.git) and [livox ros driver2](https://github.com/Livox-SDK/livox_ros_driver2.git) 's `CustomMsg`, the latter 's ros2 version is sufficient.
 
 ## 3. Build
 
-Clone the repository and catkin_make:
+Clone the repository and colcon build:
 
 ```
-cd ~/catkin_ws/src
-git clone https://github.com/hku-mars/FAST-LIVO2
+cd ~/fast_ws/src
+git clone https://github.com/Robotic-Developer-Road/FAST-LIVO2.git
 cd ../
-catkin_make
-source ~/catkin_ws/devel/setup.bash
+colcon build --symlink-install --continue-on-error
+source ~/fast_ws/install/setup.bash
 ```
 
 ## 4. Run our examples
 
 Download our collected rosbag files via OneDrive ([**FAST-LIVO2-Dataset**](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/zhengcr_connect_hku_hk/ErdFNQtjMxZOorYKDTtK4ugBkogXfq1OfDm90GECouuIQA?e=KngY9Z)). 
 
+### convert rosbag
+
+convert ROS1 rosbag to ROS2 rosbag
+```bash
+rosbags-convert --src Retail_Street.bag --dst Retail_Street
 ```
-roslaunch fast_livo mapping_avia.launch
-rosbag play YOUR_DOWNLOADED.bag
+- [gitlab rosbags](https://gitlab.com/ternaris/rosbags)
+- [pypi rosbags](https://pypi.org/project/rosbags/)
+
+### change the msg type on rosbag
+
+Such as dataset `Retail_Street.db3`, because we use `livox_ros2_driver2`'s `CustomMsg`, we need to change the msg type in the rosbag file. We use `rosbag2 modify` to change the msg type.
+
+**metadata.yaml**
+```diff
+rosbag2_bagfile_information:
+  compression_format: ''
+  compression_mode: ''
+  custom_data: {}
+  duration:
+    nanoseconds: 135470252209
+  files:
+  - duration:
+      nanoseconds: 135470252209
+    message_count: 30157
+    path: Retail_Street.db3
+    ..............
+    topic_metadata:
+      name: /livox/lidar
+      offered_qos_profiles: ''
+      serialization_format: cdr
+-     type: livox_ros_driver/msg/CustomMsg
++     type: livox_ros_driver2/msg/CustomMsg
+      type_description_hash: RIHS01_94041b4794f52c1d81def2989107fc898a62dacb7a39d5dbe80d4b55e538bf6d
+    ...............
+.....
 ```
 
+Do not forget to source your ROS2 workspace before running the following command.
+
+```bash
+ros2 launch fast_livo mapping_aviz.launch.py use_rviz:=True
+ros2 bag play -p Retail_Street  # space bar controls play/pause
+```
 
 ## 5. License
 
