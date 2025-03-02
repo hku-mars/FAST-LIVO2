@@ -39,6 +39,9 @@ We open-source our handheld device, including CAD files, synchronization scheme,
 ### 1.4 Our associate dataset: FAST-LIVO2-Dataset
 Our associate dataset [**FAST-LIVO2-Dataset**](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/zhengcr_connect_hku_hk/ErdFNQtjMxZOorYKDTtK4ugBkogXfq1OfDm90GECouuIQA?e=KngY9Z) used for evaluation is also available online. **Please note that the dataset is being uploaded gradually.**
 
+### MARS-LVIG dataset
+[**MARS-LVIG dataset**](https://mars.hku.hk/dataset.html)：A multi-sensor aerial robots SLAM dataset for LiDAR-visual-inertial-GNSS fusion
+
 ## 2. Prerequisited
 
 ### 2.1 Ubuntu and ROS
