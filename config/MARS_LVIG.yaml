@@ -108,3 +108,4 @@ pcd_save:
   filter_size_pcd: 0.15
   interval: -1
   # how many LiDAR frames saved in each pcd file;
+  # -1 : all frames will be saved in ONE pcd file, may lead to memory crash when having too much frames.

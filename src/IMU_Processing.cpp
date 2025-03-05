@@ -152,18 +152,15 @@ void ImuProcess::IMU_init(const MeasureGroup &meas, StatesGroup &state_inout, in
 
 void ImuProcess::Forward_without_imu(LidarMeasureGroup &meas, StatesGroup &state_inout, PointCloudXYZI &pcl_out)
 {
-  const double &pcl_beg_time = meas.lidar_frame_beg_time;
-
-  /*** sort point clouds by offset time ***/
   pcl_out = *(meas.lidar);
-  // sort(pcl_out->points.begin(), pcl_out->points.end(), time_list);
+  /*** sort point clouds by offset time ***/
+  const double &pcl_beg_time = meas.lidar_frame_beg_time;
+  sort(pcl_out.points.begin(), pcl_out.points.end(), time_list);
   const double &pcl_end_time = pcl_beg_time + pcl_out.points.back().curvature / double(1000);
-  // V3D acc_imu, angvel_avr, acc_avr, vel_imu(state_inout.vel_end),
-  //     pos_imu(state_inout.pos_end);
-  // M3D R_imu(state_inout.rot_end);
   meas.last_lio_update_time = pcl_end_time;
-  MD(DIM_STATE, DIM_STATE)
-  F_x, cov_w;
+  const double &pcl_end_offset_time = pcl_out.points.back().curvature / double(1000);
+
+  MD(DIM_STATE, DIM_STATE) F_x, cov_w;
   double dt = 0;
 
   if (b_first_frame)
@@ -214,7 +211,30 @@ void ImuProcess::Forward_without_imu(LidarMeasureGroup &meas, StatesGroup &state
   //           << std::endl;
   state_inout.rot_end = state_inout.rot_end * Exp_f;
   state_inout.pos_end = state_inout.pos_end + state_inout.vel_end * dt;
+
+  if (lidar_type != L515)
+  {
+    auto it_pcl = pcl_out.points.end() - 1;
+    double dt_j = 0.0;
+    for(; it_pcl != pcl_out.points.begin(); it_pcl--)
+    {
+        dt_j= pcl_end_offset_time - it_pcl->curvature/double(1000);
+        M3D R_jk(Exp(state_inout.bias_g, - dt_j));
+        V3D P_j(it_pcl->x, it_pcl->y, it_pcl->z);
+        // Using rotation and translation to un-distort points
+        V3D p_jk;
+        p_jk = - state_inout.rot_end.transpose() * state_inout.vel_end * dt_j;
+  
+        V3D P_compensate =  R_jk * P_j + p_jk;
+  
+        /// save Undistorted points and their rotation
+        it_pcl->x = P_compensate(0);
+        it_pcl->y = P_compensate(1);
+        it_pcl->z = P_compensate(2);
+    }
+  }
 }
+
 
 void ImuProcess::UndistortPcl(LidarMeasureGroup &lidar_meas, StatesGroup &state_inout, PointCloudXYZI &pcl_out)
 {

@@ -63,6 +63,7 @@ public:
   bool imu_need_init = true;
   M3D Eye3d;
   V3D Zero3d;
+  int lidar_type;
 
 private:
   void IMU_init(const MeasureGroup &meas, StatesGroup &state, int &N);
