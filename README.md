@@ -129,6 +129,7 @@ Download our collected rosbag files via OneDrive ([**FAST-LIVO2-Dataset**](https
 
 convert ROS1 rosbag to ROS2 rosbag
 ```bash
+pip install rosbags
 rosbags-convert --src Retail_Street.bag --dst Retail_Street
 ```
 - [gitlab rosbags](https://gitlab.com/ternaris/rosbags)
@@ -136,7 +137,9 @@ rosbags-convert --src Retail_Street.bag --dst Retail_Street
 
 ### change the msg type on rosbag
 
-Such as dataset `Retail_Street.db3`, because we use `livox_ros2_driver2`'s `CustomMsg`, we need to change the msg type in the rosbag file. We use `rosbag2 modify` to change the msg type.
+Such as dataset `Retail_Street.db3`, because we use `livox_ros2_driver2`'s `CustomMsg`, we need to change the msg type in the rosbag file. 
+1. use `rosbags-convert` to convert rosbag from ROS1 to ROS2.
+2. change the msg type of msg type in **metadata.yaml** as follows:
 
 **metadata.yaml**
 ```diff
@@ -163,7 +166,9 @@ rosbag2_bagfile_information:
 .....
 ```
 
-Do not forget to source your ROS2 workspace before running the following command.
+### Run the demo
+
+Do not forget to `source` your ROS2 workspace before running the following command.
 
 ```bash
 ros2 launch fast_livo mapping_aviz.launch.py use_rviz:=True
