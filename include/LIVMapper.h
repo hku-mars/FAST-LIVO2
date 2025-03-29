@@ -97,6 +97,7 @@ public:
   nav_msgs::Odometry imu_prop_odom;
   ros::Publisher pubImuPropOdom;
   double imu_time_offset = 0.0;
+  double lidar_time_offset = 0.0;
 
   bool gravity_align_en = false, gravity_align_finished = false;
 
