@@ -35,21 +35,24 @@ Our accompanying video is now available on [**Bilibili**](https://www.bilibili.c
 We open-source our handheld device, including CAD files, synchronization scheme, STM32 source code, wiring instructions, and sensor ROS driver. Access these resources at this repository: [**LIV_handhold**](https://github.com/xuankuzcr/LIV_handhold).
 
 ### 1.4 Our associate dataset: FAST-LIVO2-Dataset
-Our associate dataset [**FAST-LIVO2-Dataset**](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/zhengcr_connect_hku_hk/ErdFNQtjMxZOorYKDTtK4ugBkogXfq1OfDm90GECouuIQA?e=KngY9Z) used for evaluation is also available online. **Please note that the dataset is being uploaded gradually.**
+Our associate dataset [**FAST-LIVO2-Dataset**](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/zhengcr_connect_hku_hk/ErdFNQtjMxZOorYKDTtK4ugBkogXfq1OfDm90GECouuIQA?e=KngY9Z) used for evaluation is also available online.
+
+### 1.5 Our calibration method
+Stay tuned...
 
 ## 2. Prerequisited
 
 ### 2.1 Ubuntu and ROS
 
-Ubuntu 16.04~20.04.  [ROS Installation](http://wiki.ros.org/ROS/Installation).
+Ubuntu 18.04~20.04.  [ROS Installation](http://wiki.ros.org/ROS/Installation).
 
 ### 2.2 PCL && Eigen && OpenCV
 
-PCL>=1.6, Follow [PCL Installation](https://pointclouds.org/). 
+PCL>=1.8, Follow [PCL Installation](https://pointclouds.org/). 
 
 Eigen>=3.3.4, Follow [Eigen Installation](https://eigen.tuxfamily.org/index.php?title=Main_Page).
 
-OpenCV>=3.2, Follow [Opencv Installation](http://opencv.org/).
+OpenCV>=4.2, Follow [Opencv Installation](http://opencv.org/).
 
 ### 2.3 Sophus
 
@@ -73,10 +76,6 @@ Vikit contains camera models, some math and interpolation functions that we need
 cd catkin_ws/src
 git clone https://github.com/xuankuzcr/rpg_vikit.git 
 ```
-
-### 2.5 **livox_ros_driver**
-
-Follow [livox_ros_driver Installation](https://github.com/Livox-SDK/livox_ros_driver).
 
 ## 3. Build
 

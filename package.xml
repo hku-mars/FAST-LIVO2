@@ -25,7 +25,6 @@
   <build_depend>sensor_msgs</build_depend>
   <build_depend>tf</build_depend>
   <build_depend>pcl_ros</build_depend>
-  <build_depend>livox_ros_driver</build_depend>
   <build_depend>message_generation</build_depend>
   <build_depend>vikit_common</build_depend>
   <build_depend>vikit_ros</build_depend>
@@ -39,7 +38,6 @@
   <run_depend>std_msgs</run_depend>
   <run_depend>tf</run_depend>
   <run_depend>pcl_ros</run_depend>
-  <run_depend>livox_ros_driver</run_depend>
   <run_depend>message_runtime</run_depend>
   <run_depend>vikit_common</run_depend>
   <run_depend>vikit_ros</run_depend>
