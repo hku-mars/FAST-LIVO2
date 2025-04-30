@@ -37,8 +37,8 @@ We open-source our handheld device, including CAD files, synchronization scheme,
 ### 1.4 Our associate dataset: FAST-LIVO2-Dataset
 Our associate dataset [**FAST-LIVO2-Dataset**](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/zhengcr_connect_hku_hk/ErdFNQtjMxZOorYKDTtK4ugBkogXfq1OfDm90GECouuIQA?e=KngY9Z) used for evaluation is also available online.
 
-### 1.5 Our calibration method
-Stay tuned...
+### 1.5 Our LiDAR-camera calibration method
+The [**FAST-Calib**](https://github.com/hku-mars/FAST-Calib) toolkit is recommended. Its output extrinsic parameters can be directly filled into the YAML file. 
 
 ## 2. Prerequisited
 
