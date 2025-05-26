@@ -87,6 +87,7 @@ void LIVMapper::readParameters(ros::NodeHandle &nh)
 
   nh.param<double>("preprocess/blind", p_pre->blind, 0.01);
   nh.param<double>("preprocess/filter_size_surf", filter_size_surf_min, 0.5);
+  nh.param<bool>("preprocess/hilti_en", hilti_en, false);
   nh.param<int>("preprocess/lidar_type", p_pre->lidar_type, AVIA);
   nh.param<int>("preprocess/scan_line", p_pre->N_SCANS, 6);
   nh.param<int>("preprocess/point_filter_num", p_pre->point_filter_num, 3);
@@ -809,7 +810,6 @@ cv::Mat LIVMapper::getImageFromMsg(const sensor_msgs::ImageConstPtr &img_msg)
   return img;
 }
 
-// static int i = 0;
 void LIVMapper::img_cbk(const sensor_msgs::ImageConstPtr &msg_in)
 {
   if (!img_en) return;
@@ -822,11 +822,11 @@ void LIVMapper::img_cbk(const sensor_msgs::ImageConstPtr &msg_in)
   // }
 
   // Hiliti2022 40Hz
-  // if (hilti_en)
-  // {
-  //   i++;
-  //   if (i % 4 != 0) return;
-  // }
+  if (hilti_en)
+  {
+    static int frame_counter = 0;
+    if (++frame_counter % 4 != 0) return;
+  }
   // double msg_header_time =  msg->header.stamp.toSec();
   double msg_header_time = msg->header.stamp.toSec() + img_time_offset;
   if (abs(msg_header_time - last_timestamp_img) < 0.001) return;
