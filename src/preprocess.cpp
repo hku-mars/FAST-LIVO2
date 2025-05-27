@@ -80,6 +80,11 @@ void Preprocess::process(const sensor_msgs::PointCloud2::ConstPtr &msg, PointClo
   case PANDAR128:
     Pandar128_handler(msg);
     break;
+
+  case ROBOSENSE:
+    robosense_handler(msg);
+    break;
+
   default:
     printf("Error LiDAR Type: %d \n", lidar_type);
     break;
@@ -515,7 +520,7 @@ void Preprocess::Pandar128_handler(const sensor_msgs::PointCloud2::ConstPtr &msg
   int plsize = pl_orig.points.size();
   pl_surf.reserve(plsize);
 
-  // double time_head = pl_orig.points[0].timestamp;
+  double time_head = pl_orig.points[0].timestamp;
   for (int i = 0; i < plsize; i++)
   {
     PointType added_pt;
@@ -526,7 +531,8 @@ void Preprocess::Pandar128_handler(const sensor_msgs::PointCloud2::ConstPtr &msg
     added_pt.x = pl_orig.points[i].x;
     added_pt.y = pl_orig.points[i].y;
     added_pt.z = pl_orig.points[i].z;
-    added_pt.curvature = pl_orig.points[i].timestamp * 1000.f;
+    added_pt.intensity = static_cast<float>(pl_orig.points[i].intensity) / 255.0f;
+    added_pt.curvature = (pl_orig.points[i].timestamp - time_head) * 1000.f;
 
     if (i % point_filter_num == 0)
     {
@@ -699,6 +705,42 @@ void Preprocess::xt32_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
   // pub_func(pl_surf, pub_full, msg->header.stamp);
   // pub_func(pl_surf, pub_surf, msg->header.stamp);
   // pub_func(pl_surf, pub_corn, msg->header.stamp);
+}
+
+void Preprocess::robosense_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
+{
+  pl_surf.clear();
+
+  pcl::PointCloud<robosense_ros::Point> pl_orig;
+  pcl::fromROSMsg(*msg, pl_orig);
+  int plsize = pl_orig.size();
+  pl_surf.reserve(plsize);
+
+  double time_head = pl_orig.points[0].timestamp;
+  for (int i = 0; i < plsize; ++i)
+  {
+    if (i % point_filter_num != 0) continue;
+
+    const auto& pt = pl_orig.points[i];
+    const double x = pt.x, y = pt.y, z = pt.z;
+    const double dist_sqr = x * x + y * y + z * z;
+    const bool is_valid = (dist_sqr >= blind_sqr) && !std::isnan(x) && !std::isnan(y) && !std::isnan(z);
+    if (!is_valid) continue;
+
+    PointType added_pt;
+    added_pt.normal_x = 0;
+    added_pt.normal_y = 0;
+    added_pt.normal_z = 0;
+    added_pt.x = pt.x;
+    added_pt.y = pt.y;
+    added_pt.z = pt.z;
+    added_pt.intensity = pt.intensity;
+    added_pt.curvature = (pt.timestamp - time_head) * 1000.0;
+    pl_surf.points.push_back(added_pt);
+  }
+  std::sort(pl_surf.points.begin(), pl_surf.points.end(), [](const PointType &a, const PointType &b) {
+    return a.curvature < b.curvature;
+  });
 }
 
 void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &types)
