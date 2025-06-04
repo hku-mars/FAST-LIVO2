@@ -19,6 +19,7 @@ Preprocess::Preprocess() : feature_enabled(0), lidar_type(AVIA), blind(0.01), po
 {
   inf_bound = 10;
   N_SCANS = 6;
+  SCAN_RATE = 10;
   group_size = 8;
   disA = 0.01;
   disA = 0.1; // B?
@@ -357,7 +358,7 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
 
   bool is_first[MAX_LINE_NUM];
   double yaw_fp[MAX_LINE_NUM] = {0};     // yaw of first scan point
-  double omega_l = 3.61;                 // scan angular velocity
+  double omega_l = 0.361 * SCAN_RATE;                 // scan angular velocity
   float yaw_last[MAX_LINE_NUM] = {0.0};  // yaw of last scan point
   float time_last[MAX_LINE_NUM] = {0.0}; // last offset time
 
@@ -486,8 +487,6 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
 
         if (added_pt.curvature < time_last[layer]) added_pt.curvature += 360.0 / omega_l;
 
-        // added_pt.curvature = pl_orig.points[i].t;
-
         yaw_last[layer] = yaw_angle;
         time_last[layer] = added_pt.curvature;
       }
@@ -500,8 +499,6 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
         if (added_pt.x * added_pt.x + added_pt.y * added_pt.y + added_pt.z * added_pt.z > blind_sqr)
         {
           pl_surf.points.push_back(added_pt);
-          // printf("time mode: %d time: %d \n", given_offset_time,
-          // pl_orig.points[i].t);
         }
       }
     }
