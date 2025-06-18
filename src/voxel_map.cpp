@@ -384,7 +384,7 @@ void VoxelMapManager::StateEstimation(StatesGroup &state_propagat)
 
       M3D cov = body_cov_list_[i];
       M3D point_crossmat = cross_mat_list_[i];
-      cov = state_.rot_end * cov * state_.rot_end.transpose() + (-point_crossmat) * rot_var * (-point_crossmat.transpose()) + t_var;
+      cov = (state_.rot_end*extR_) * cov * (state_.rot_end*extR_).transpose() + state_.rot_end*(-point_crossmat) * rot_var * (-point_crossmat.transpose())*state_.rot_end.transpose() + t_var;
       pv.var = cov;
       pv.body_var = body_cov_list_[i];
     }
@@ -547,9 +547,10 @@ void VoxelMapManager::BuildVoxelMap()
     M3D var;
     calcBodyCov(point_this, config_setting_.dept_err_, config_setting_.beam_err_, var);
     M3D point_crossmat;
+    point_this = extR_ * point_this + extT_;//同livmapper.cpp的逻辑，这个点需要转换到imu坐标系下
     point_crossmat << SKEW_SYM_MATRX(point_this);
     var = (state_.rot_end * extR_) * var * (state_.rot_end * extR_).transpose() +
-          (-point_crossmat) * state_.cov.block<3, 3>(0, 0) * (-point_crossmat).transpose() + state_.cov.block<3, 3>(3, 3);
+          state_.rot_end*(-point_crossmat) * state_.cov.block<3, 3>(0, 0) * (-point_crossmat).transpose()*state_.rot_end.transpose() + state_.cov.block<3, 3>(3, 3);
     pv.var = var;
     input_points.push_back(pv);
   }
