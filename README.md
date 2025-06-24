@@ -63,6 +63,7 @@ OpenCV>=4.2, Follow [Opencv Installation](http://opencv.org/).
 
 #### Binary installation
 ```bash
+cd ~
 git clone https://github.com/strasdat/Sophus.git -b 1.22.10
 cd Sophus
 mkdir build && cd build && cmake ..
@@ -70,33 +71,6 @@ make
 sudo make install
 ```
 
-#### Building from source
-Sophus Installation for the non-templated/double-only version.
-
-```bash
-git clone https://github.com/strasdat/Sophus.git
-cd Sophus
-git checkout a621ff
-mkdir build && cd build && cmake ..
-make
-sudo make install
-```
-
-if build fails due to `so2.cpp:32:26: error: lvalue required as left operand of assignment`, modify the code as follows:
-
-**so2.cpp**
-```diff
-namespace Sophus
-{
-
-SO2::SO2()
-{
--  unit_complex_.real() = 1.;
--  unit_complex_.imag() = 0.;
-+  unit_complex_.real(1.);
-+  unit_complex_.imag(0.);
-}
-```
 
 ### 2.4 Vikit
 
