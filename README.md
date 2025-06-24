@@ -71,7 +71,6 @@ make
 sudo make install
 ```
 
-
 ### 2.4 Vikit
 
 Vikit provides essential camera models, math utilities, and interpolation functions. As an ament package for ROS2, download its source into your colcon workspace's src folder. Additionally, I've added OpenCV fisheye distortion correction to the equidistant camera model in vikit_common.
@@ -79,7 +78,8 @@ Vikit provides essential camera models, math utilities, and interpolation functi
 ```bash
 # Different from the one used in fast-livo1
 cd ~
-git clone https://github.com/Rhymer-Lcy/rpg_vikit_ros2_fisheye.git 
+git clone https://github.com/Rhymer-Lcy/rpg_vikit_ros2_fisheye.git
+mkdir -p ~/fast/src
 cp -r ./rpg_vikit_ros2_fisheye/{vikit_common,vikit_ros} ~/fast_ws/src/
 ```
 
