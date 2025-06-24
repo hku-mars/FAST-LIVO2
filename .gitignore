@@ -1,2 +1,6 @@
-Log/*
+Log/*.bag
+Log/*.pcd
+Log/*.db3
+Log/*.yaml
+!Log/
 build/*
