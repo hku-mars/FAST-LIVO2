@@ -93,7 +93,7 @@ Thanks to the following repositories for the code reference:
 Follow [livox_ros_driver2 Installation](https://github.com/Livox-SDK/livox_ros_driver2).
 
 ```bash
-cd fast_ws/src
+cd ~/fast_ws/src/
 git clone https://github.com/Livox-SDK/livox_ros_driver2.git ws_livox/src/livox_ros_driver2
 ```
 
