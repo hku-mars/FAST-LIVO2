@@ -42,8 +42,8 @@ Our associate dataset [**FAST-LIVO2-Dataset**](https://connecthkuhk-my.sharepoin
 ### MARS-LVIG dataset
 [**MARS-LVIG dataset**](https://mars.hku.hk/dataset.html)：A multi-sensor aerial robots SLAM dataset for LiDAR-visual-inertial-GNSS fusion
 
-### 1.5 Our calibration method
-Stay tuned...
+### 1.5 Our LiDAR-camera calibration method
+The [**FAST-Calib**](https://github.com/hku-mars/FAST-Calib) toolkit is recommended. Its output extrinsic parameters can be directly filled into the YAML file.
 
 ## 2. Prerequisited
 
@@ -63,7 +63,11 @@ OpenCV>=4.2, Follow [Opencv Installation](http://opencv.org/).
 
 #### Binary installation
 ```bash
-sudo apt install ros-$ROS_DISTRO-sophus
+git clone https://github.com/strasdat/Sophus.git -b 1.22.10
+cd Sophus
+mkdir build && cd build && cmake ..
+make
+sudo make install
 ```
 
 #### Building from source
@@ -96,25 +100,28 @@ SO2::SO2()
 
 ### 2.4 Vikit
 
-Vikit contains camera models, some math and interpolation functions that we need. Vikit is a catkin project, therefore, download it into your catkin workspace source folder.
-
-For well-known reasons, ROS2 does not have a direct global parameter server and a simple method to obtain the corresponding parameters. For details, please refer to https://discourse.ros.org/t/ros2-global-parameter-server-status/10114/11. I use a special way to get camera parameters in Vikit. While the method I've provided so far is quite simple and not perfect, it meets my needs. More contributions to improve `rpg_vikit` are hoped.
+Vikit provides essential camera models, math utilities, and interpolation functions. As an ament package for ROS2, download its source into your colcon workspace's src folder. Additionally, I've added OpenCV fisheye distortion correction to the equidistant camera model in vikit_common.
 
 ```bash
 # Different from the one used in fast-livo1
-cd fast_ws/src
-git clone https://github.com/Robotic-Developer-Road/rpg_vikit.git 
+cd ~
+git clone https://github.com/Rhymer-Lcy/rpg_vikit_ros2_fisheye.git 
+cp -r ./rpg_vikit_ros2_fisheye/{vikit_common,vikit_ros} ~/fast_ws/src/
 ```
 
 Thanks to the following repositories for the code reference:
 
-- [uzh-rpg/rpg_vikit](https://github.com/uzh-rpg/rpg_vikit)
 - [xuankuzcr/rpg_vikit](https://github.com/xuankuzcr/rpg_vikit)
-- [uavfly/vikit](https://github.com/uavfly/vikit)
+- [integralrobotics/rpg_vikit](https://github.com/integralrobotics/rpg_vikit)
 
 ### 2.5 **livox_ros_driver2**
 
 Follow [livox_ros_driver2 Installation](https://github.com/Livox-SDK/livox_ros_driver2).
+
+```bash
+cd fast_ws/src
+git clone https://github.com/Livox-SDK/livox_ros_driver2.git ws_livox/src/livox_ros_driver2
+```
 
 why not use `livox_ros_driver`? Because it is not compatible with ROS2 directly. actually i am not think there s any difference between [livox ros driver](https://github.com/Livox-SDK/livox_ros_driver.git) and [livox ros driver2](https://github.com/Livox-SDK/livox_ros_driver2.git) 's `CustomMsg`, the latter 's ros2 version is sufficient.
 
@@ -123,10 +130,9 @@ why not use `livox_ros_driver`? Because it is not compatible with ROS2 directly.
 Clone the repository and colcon build:
 
 ```
-cd ~/fast_ws/src
-git clone https://github.com/Robotic-Developer-Road/FAST-LIVO2.git
-cd ../
-colcon build --symlink-install --continue-on-error
+git clone https://github.com/Rhymer-Lcy/FAST-LIVO2-ROS2-MID360-Fisheye.git
+cd livox_ros_driver2
+./build.sh humble
 source ~/fast_ws/install/setup.bash
 ```
 
@@ -180,8 +186,13 @@ rosbag2_bagfile_information:
 Do not forget to `source` your ROS2 workspace before running the following command.
 
 ```bash
-ros2 launch fast_livo mapping_aviz.launch.py use_rviz:=True
+ros2 launch fast_livo mapping_aviz.launch.py use_rviz:=True use_sim_time:=True
 ros2 bag play -p Retail_Street  # space bar controls play/pause
+```
+
+```bash
+ros2 launch fast_livo mapping_aviz_metacamedu.launch.py use_rviz:=True use_sim_time:=True  # Configuration for MID360-Fisheye dataset
+ros2 bag play -p $BAG_PATH  # Use space bar to play/pause (self-collected MID360-Fisheye dataset)
 ```
 
 ## 5. License
