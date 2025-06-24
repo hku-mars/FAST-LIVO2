@@ -79,7 +79,7 @@ Vikit provides essential camera models, math utilities, and interpolation functi
 # Different from the one used in fast-livo1
 cd ~
 git clone https://github.com/Rhymer-Lcy/rpg_vikit_ros2_fisheye.git
-mkdir -p ~/fast/src
+mkdir -p ~/fast/src/
 cp -r ./rpg_vikit_ros2_fisheye/{vikit_common,vikit_ros} ~/fast_ws/src/
 ```
 
