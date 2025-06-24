@@ -6,8 +6,8 @@
 
 This project extends the following open-source contributions:
 
-- **Original work**: [FAST-LIVO2](https://github.com/hku-mars/FAST-LIVO2) by Chunran Zheng (HKU MARS Lab)
-- **ROS2 Humble port**: [FAST-LIVO2/tree/humble](https://github.com/Robotic-Developer-Road/FAST-LIVO2/tree/humble) by Robotic-Developer-Road
+- **Original work**: [FAST-LIVO2](https://github.com/hku-mars/FAST-LIVO2) by Chunran Zheng (HKU MARS Lab).
+- **ROS2 Humble port**: [FAST-LIVO2/tree/humble](https://github.com/Robotic-Developer-Road/FAST-LIVO2/tree/humble) by Robotic-Developer-Road.
 
 ### 📢 News
 
