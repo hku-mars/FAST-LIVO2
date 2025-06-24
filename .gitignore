@@ -1,5 +1,1 @@
-Log/*.bag
-Log/*.db3
-Log/*.yaml
-!Log/
 build/*
