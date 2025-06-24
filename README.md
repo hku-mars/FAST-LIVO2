@@ -2,9 +2,10 @@
 
 ## FAST-LIVO2: Fast, Direct LiDAR-Inertial-Visual Odometry
 
-We extend our gratitude to:
-- **Chunran Zheng** (HKU MARS Lab) for the original excellent work
-- **[Robotic-Developer-Road/FAST-LIVO2](https://github.com/Robotic-Developer-Road/FAST-LIVO2/tree/humble)** for the ROS2 Humble port
+This project builds upon the excellent open-source work of the community. We specifically acknowledge:
+
+- **Chunran Zheng (HKU MARS Lab)** for the original [FAST-LIVO2](https://github.com/hku-mars/FAST-LIVO2) implementation and research.
+- **[Robotic-Developer-Road](https://github.com/Robotic-Developer-Road/FAST-LIVO2/tree/humble)** for the ROS2 Humble port that made this adaptation possible.
 
 ### 📢 News
 
