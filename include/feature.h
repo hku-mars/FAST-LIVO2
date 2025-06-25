@@ -14,6 +14,7 @@ which is included as part of this source code package.
 #define LIVO_FEATURE_H_
 
 #include "visual_point.h"
+#include <opencv2/features2d.hpp>
 
 // A salient image region that is tracked across frames.
 struct Feature
@@ -38,9 +39,11 @@ struct Feature
   float score_;          //!< Score of the patch feature.
   float mean_;           //!< Mean intensity of the image patch feature, used for normalization.
   double inv_expo_time_; //!< Inverse exposure time of the image where the patch feature was extracted.
+  cv::Mat descriptor_;   //!< Generic descriptor (works for ORB, SIFT, etc.)
+  std::string feature_type_;  //!< Type of feature (ORB, SIFT, etc.)
   
-  Feature(VisualPoint *_point, float *_patch, const Vector2d &_px, const Vector3d &_f, const SE3 &_T_f_w, int _level)
-      : type_(CORNER), px_(_px), f_(_f), T_f_w_(_T_f_w), mean_(0), score_(0), level_(_level), patch_(_patch), point_(_point)
+  Feature(VisualPoint *_point, float *_patch, const Vector2d &_px, const Vector3d &_f, const SE3 &_T_f_w, int _level, const cv::Mat& _descriptor = cv::Mat())
+      : type_(CORNER), px_(_px), f_(_f), T_f_w_(_T_f_w), mean_(0), score_(0), level_(_level), patch_(_patch), point_(_point), descriptor_(_descriptor.clone()), feature_type_("DIRECT")
   {
   }
 

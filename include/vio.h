@@ -16,12 +16,15 @@ which is included as part of this source code package.
 #include "voxel_map.h"
 #include "feature.h"
 #include <opencv2/imgproc/imgproc_c.h>
+#include <opencv2/features2d.hpp>
 #include <pcl/filters/voxel_grid.h>
 #include <set>
 #include <vikit/math_utils.h>
 #include <vikit/robust_cost.h>
 #include <vikit/vision.h>
 #include <vikit/pinhole_camera.h>
+#include "feature_detector.h"
+#include "feature_factory.h"
 
 struct SubSparseMap
 {
@@ -100,6 +103,14 @@ public:
   bool normal_en, inverse_composition_en, exposure_estimate_en, raycast_en, has_ref_patch_cache;
   bool ncc_en = false, colmap_output_en = false;
 
+  // Feature detection system
+  std::unique_ptr<fast_livo2::AbstractFeatureDetector> feature_detector_;
+  cv::Ptr<cv::DescriptorMatcher> feature_matcher_;
+  std::vector<cv::KeyPoint> current_keypoints_;
+  cv::Mat current_descriptors_;
+  fast_livo2::FeatureType feature_type_;
+  bool use_hybrid_mode_;
+
   int width, height, grid_n_width, grid_n_height, length;
   double image_resize_factor;
   double fx, fy, cx, cy;
@@ -170,6 +181,13 @@ public:
   double calculateNCC(float *ref_patch, float *cur_patch, int patch_size);
   int getBestSearchLevel(const Matrix2d &A_cur_ref, const int max_level);
   V3F getInterpolatedPixel(cv::Mat img, V2D pc);
+  
+  // Phase 3: Descriptor-based tracking methods
+  void retrieveWithDescriptors(cv::Mat img, vector<pointWithVar> &pg, 
+                               const unordered_map<VOXEL_LOCATION, VoxelOctoTree *> &plane_map);
+  void retrieveWithDirect(cv::Mat img, vector<pointWithVar> &pg,
+                          const unordered_map<VOXEL_LOCATION, VoxelOctoTree *> &plane_map);
+  bool validateMatchGeometry(VisualPoint* pt, const cv::KeyPoint& kp, const V2D& projected_pc);
   
   // void resetRvizDisplay();
   // deque<VisualPoint *> map_cur_frame;

@@ -30,7 +30,8 @@ Frame::Frame(vk::AbstractCamera *cam, const cv::Mat &img)
 
 Frame::~Frame()
 {
-  std::for_each(fts_.begin(), fts_.end(), [&](Feature *i) { delete i; });
+  // Features are now shared_ptr, so they will be automatically deleted
+  fts_.clear();
 }
 
 void Frame::initFrame(const cv::Mat &img)

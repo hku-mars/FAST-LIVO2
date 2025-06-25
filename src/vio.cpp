@@ -12,6 +12,19 @@ which is included as part of this source code package.
 
 #include "vio.h"
 
+// Helper function to convert string to FeatureType enum
+fast_livo2::FeatureType stringToFeatureType(const std::string& type_str) {
+    if (type_str == "ORB") return fast_livo2::FeatureType::ORB;
+    else if (type_str == "SIFT") return fast_livo2::FeatureType::SIFT;
+    else if (type_str == "SURF") return fast_livo2::FeatureType::SURF;
+    else if (type_str == "AKAZE") return fast_livo2::FeatureType::AKAZE;
+    else if (type_str == "DIRECT") return fast_livo2::FeatureType::DIRECT;
+    else {
+        ROS_WARN("Unknown feature type: %s, defaulting to ORB", type_str.c_str());
+        return fast_livo2::FeatureType::ORB;
+    }
+}
+
 VIOManager::VIOManager()
 {
   // downSizeFilter.setLeafSize(0.2, 0.2, 0.2);
@@ -63,6 +76,30 @@ void VIOManager::initializeVIO()
   Pic = -Rci.transpose() * Pci;
   tmp << SKEW_SYM_MATRX(Pic);
   Jdp_dR = -Rci * tmp;
+
+  // Feature detector initialization for Phase 1.3
+  // Read feature type from ROS parameters
+  ros::NodeHandle nh("~");
+  std::string feature_type_str;
+  nh.param<std::string>("feature_type", feature_type_str, "ORB");
+  nh.param<bool>("use_hybrid", use_hybrid_mode_, true);
+  
+  // Create appropriate detector
+  if (use_hybrid_mode_) {
+    feature_type_ = stringToFeatureType(feature_type_str);
+    feature_detector_ = fast_livo2::FeatureFactory::createDetector(feature_type_, nh);
+    if (feature_detector_) {
+      feature_matcher_ = feature_detector_->createMatcher();
+      printf("Feature detector initialized: %s mode, type: %s\n", 
+             use_hybrid_mode_ ? "Hybrid" : "Direct",
+             feature_detector_->getFeatureType().c_str());
+    } else {
+      ROS_ERROR("Failed to create feature detector, falling back to direct mode");
+      use_hybrid_mode_ = false;
+    }
+  } else {
+    printf("Using direct photometric mode (no feature detection)\n");
+  }
 
   if (grid_size > 10)
   {
@@ -352,6 +389,17 @@ double VIOManager::calculateNCC(float *ref_patch, float *cur_patch, int patch_si
 void VIOManager::retrieveFromVisualSparseMap(cv::Mat img, vector<pointWithVar> &pg, const unordered_map<VOXEL_LOCATION, VoxelOctoTree *> &plane_map)
 {
   if (feat_map.size() <= 0) return;
+  
+  // Phase 3.1: Mode dispatch
+  if (use_hybrid_mode_) {
+    retrieveWithDescriptors(img, pg, plane_map);
+  } else {
+    retrieveWithDirect(img, pg, plane_map);
+  }
+}
+
+void VIOManager::retrieveWithDirect(cv::Mat img, vector<pointWithVar> &pg, const unordered_map<VOXEL_LOCATION, VoxelOctoTree *> &plane_map)
+{
   double ts0 = omp_get_wtime();
 
   // pg_down->reserve(feat_map.size());
@@ -642,7 +690,7 @@ void VIOManager::retrieveFromVisualSparseMap(cv::Mat img, vector<pointWithVar> &
       // t_2 += omp_get_wtime() - t_1;
 
       // t_1 = omp_get_wtime();
-      Feature *ref_ftr;
+      std::shared_ptr<Feature> ref_ftr;
       std::vector<float> patch_wrap(warp_len);
 
       int search_level;
@@ -664,7 +712,7 @@ void VIOManager::retrieveFromVisualSparseMap(cv::Mat img, vector<pointWithVar> &
         {
           for (auto it = pt->obs_.begin(), ite = pt->obs_.end(); it != ite; ++it)
           {
-            Feature *ref_patch_temp = *it;
+            std::shared_ptr<Feature> ref_patch_temp = *it;
             float *patch_temp = ref_patch_temp->patch_;
             float phtometric_errors = 0.0;
             int count = 0;
@@ -781,6 +829,660 @@ void VIOManager::retrieveFromVisualSparseMap(cv::Mat img, vector<pointWithVar> &
   printf("[ VIO ] Retrieve %d points from visual sparse map\n", total_points);
 }
 
+void VIOManager::retrieveWithDescriptors(cv::Mat img, vector<pointWithVar> &pg, 
+                                         const unordered_map<VOXEL_LOCATION, VoxelOctoTree *> &plane_map)
+{
+  double ts0 = omp_get_wtime();
+  
+  // Validate new_frame_ first
+  if (!new_frame_) {
+    printf("[ VIO ] ERROR: new_frame_ is null in retrieveWithDescriptors\n");
+    return;
+  }
+  
+  // Test if new_frame_ has valid transformation
+  try {
+    auto test_rot = new_frame_->T_f_w_.rotation_matrix();
+    if (!test_rot.allFinite()) {
+      printf("[ VIO ] ERROR: new_frame_ has invalid transformation\n");
+      return;
+    }
+  } catch (...) {
+    printf("[ VIO ] ERROR: Cannot access new_frame_ transformation\n");
+    return;
+  }
+  
+  visual_submap->reset();
+  
+  // Controls whether to include the visual submap from the previous frame
+  sub_feat_map.clear();
+  
+  float voxel_size = 0.5;
+  if (!normal_en) warp_map.clear();
+  
+  cv::Mat depth_img = cv::Mat::zeros(height, width, CV_32FC1);
+  float *it = (float *)depth_img.data;
+  
+  int loc_xyz[3];
+  
+  // Step 1: Build depth map and sub_feat_map (same as direct method)
+  for (int i = 0; i < pg.size(); i++) {
+    V3D pt_w = pg[i].point_w;
+    
+    for (int j = 0; j < 3; j++) {
+      loc_xyz[j] = floor(pt_w[j] / voxel_size);
+      if (loc_xyz[j] < 0) { loc_xyz[j] -= 1.0; }
+    }
+    VOXEL_LOCATION position(loc_xyz[0], loc_xyz[1], loc_xyz[2]);
+    
+    auto iter = sub_feat_map.find(position);
+    if (iter == sub_feat_map.end()) { sub_feat_map[position] = 0; }
+    else { iter->second = 0; }
+    
+    V3D pt_c(new_frame_->w2f(pt_w));
+    
+    if (pt_c[2] > 0) {
+      V2D px = new_frame_->cam_->world2cam(pt_c);
+      
+      if (new_frame_->cam_->isInFrame(px.cast<int>(), border)) {
+        float depth = pt_c[2];
+        int col = int(px[0]);
+        int row = int(px[1]);
+        it[width * row + col] = depth;
+      }
+    }
+  }
+  
+  // Step 2: Build descriptor database from visual map
+  std::vector<cv::Mat> map_descriptor_list;  // Store individual descriptors first
+  std::vector<VisualPoint*> descriptor_to_point;
+  std::vector<int> descriptor_to_index;
+  
+  printf("[ VIO ] Building descriptor database from visual map...\n");
+  
+  // First pass: collect all visual points in FOV
+  vector<VOXEL_LOCATION> DeleteKeyList;
+  
+  for (auto &iter : sub_feat_map) {
+    VOXEL_LOCATION position = iter.first;
+    auto corre_voxel = feat_map.find(position);
+    
+    if (corre_voxel != feat_map.end()) {
+      bool voxel_in_fov = false;
+      std::vector<VisualPoint *> &voxel_points = corre_voxel->second->voxel_points;
+      int voxel_num = voxel_points.size();
+      
+      for (int i = 0; i < voxel_num; i++) {
+        VisualPoint *pt = voxel_points[i];
+        if (pt == nullptr) continue;
+        if (pt->obs_.size() == 0) continue;
+        if (!pt->is_normal_initialized_) continue;
+        
+        V3D norm_vec(new_frame_->T_f_w_.rotation_matrix() * pt->normal_);
+        V3D dir(new_frame_->T_f_w_ * pt->pos_);
+        if (dir[2] < 0) continue;
+        
+        V2D pc(new_frame_->w2c(pt->pos_));
+        if (new_frame_->cam_->isInFrame(pc.cast<int>(), border)) {
+          voxel_in_fov = true;
+          int index = static_cast<int>(pc[1] / grid_size) * grid_n_width + static_cast<int>(pc[0] / grid_size);
+          grid_num[index] = TYPE_MAP;
+          
+          // Build descriptor database for this point
+          // Check all observations for descriptors (not just ref_patch which might be null)
+          for (auto& ftr : pt->obs_) {
+            if (ftr && !ftr->descriptor_.empty()) {
+              // Additional validation before adding to database
+              try {
+                // Test if feature has valid data
+                if (ftr->patch_ == nullptr) continue;
+                if (ftr->inv_expo_time_ <= 0) continue;
+                
+                // Test if transformation is valid
+                auto test_rot = ftr->T_f_w_.rotation_matrix();
+                
+                // If all checks pass, add to database
+                map_descriptor_list.push_back(ftr->descriptor_.clone());  // Clone to ensure data ownership
+                descriptor_to_point.push_back(pt);
+                descriptor_to_index.push_back(index);
+                
+                // Debug: Verify the point we just added
+                if (descriptor_to_point.size() <= 5) {
+                  printf("[ VIO ] Debug: Added pt %p at index %zu, pos: (%.2f, %.2f, %.2f)\n", 
+                         (void*)pt, descriptor_to_point.size()-1, 
+                         pt->pos_[0], pt->pos_[1], pt->pos_[2]);
+                  fflush(stdout);
+                }
+                
+                break; // Only add one descriptor per point
+              } catch (...) {
+                // Skip this feature if any validation fails
+                continue;
+              }
+            }
+          }
+          
+          Vector3d obs_vec(new_frame_->pos() - pt->pos_);
+          float cur_dist = obs_vec.norm();
+          if (cur_dist <= map_dist[index]) {
+            map_dist[index] = cur_dist;
+            retrieve_voxel_points[index] = pt;
+          }
+        }
+      }
+      if (!voxel_in_fov) { DeleteKeyList.push_back(position); }
+    }
+  }
+  
+  for (auto &key : DeleteKeyList) {
+    sub_feat_map.erase(key);
+  }
+  
+  // Convert descriptor list to cv::Mat
+  cv::Mat map_descriptors;
+  if (!map_descriptor_list.empty()) {
+    // Properly concatenate all descriptors into a single Mat
+    cv::vconcat(map_descriptor_list, map_descriptors);
+  }
+  
+  printf("[ VIO ] Descriptor database size: %d\n", map_descriptors.rows);
+  
+  // Step 3: Match descriptors
+  if (!map_descriptors.empty() && !current_descriptors_.empty()) {
+    std::vector<cv::DMatch> matches;
+    
+    // Match current frame descriptors to map descriptors
+    feature_matcher_->match(current_descriptors_, map_descriptors, matches);
+    
+    printf("[ VIO ] Found %zu initial descriptor matches\n", matches.size());
+    
+    // Filter matches based on distance threshold
+    float distance_threshold = (feature_type_ == fast_livo2::FeatureType::ORB) ? 50.0f : 0.7f;
+    std::vector<cv::DMatch> good_matches;
+    
+    for (const auto& match : matches) {
+      if (match.distance < distance_threshold) {
+        good_matches.push_back(match);
+      }
+    }
+    
+    printf("[ VIO ] Good matches after distance filtering: %zu\n", good_matches.size());
+    fflush(stdout); // Force flush to ensure message is printed
+    
+    // Validate data structures before processing matches
+    printf("[ VIO ] Debug: descriptor_to_point size: %zu\n", descriptor_to_point.size());
+    fflush(stdout);
+    printf("[ VIO ] Debug: current_keypoints_ size: %zu\n", current_keypoints_.size());
+    fflush(stdout);
+    
+    if (good_matches.empty()) {
+      printf("[ VIO ] No good matches to process\n");
+    } else {
+      // Debug: Print first match indices
+      const auto& first_match = good_matches[0];
+      printf("[ VIO ] Debug: First match - queryIdx: %d, trainIdx: %d, distance: %f\n", 
+             first_match.queryIdx, first_match.trainIdx, first_match.distance);
+    }
+    
+    // Step 4: For each good match, validate geometry and add to tracking
+    printf("[ VIO ] Debug: Processing %zu good matches...\n", good_matches.size());
+    fflush(stdout);
+    
+    for (size_t match_idx = 0; match_idx < good_matches.size(); match_idx++) {
+      const auto& match = good_matches[match_idx];
+      int cur_idx = match.queryIdx;  // Index in current_descriptors_
+      int map_idx = match.trainIdx;  // Index in map_descriptors
+      
+      // Debug first few matches
+      if (match_idx < 3) {
+        printf("[ VIO ] Debug: Match %zu - queryIdx: %d, trainIdx: %d\n", 
+               match_idx, cur_idx, map_idx);
+        fflush(stdout);
+      }
+      
+      // Validate indices
+      if (cur_idx >= current_keypoints_.size()) {
+        printf("[ VIO ] Warning: Invalid current keypoint index %d (size: %zu)\n", 
+               cur_idx, current_keypoints_.size());
+        continue;
+      }
+      
+      if (map_idx >= descriptor_to_point.size()) {
+        printf("[ VIO ] Warning: Invalid map descriptor index %d (size: %zu)\n", 
+               map_idx, descriptor_to_point.size());
+        continue;
+      }
+      
+      // Debug: About to access descriptor_to_point
+      if (match_idx < 5) {
+        printf("[ VIO ] Debug: About to access descriptor_to_point[%d]\n", map_idx);
+        fflush(stdout);
+      }
+      
+      VisualPoint* pt = descriptor_to_point[map_idx];
+      
+      if (match_idx < 5) {
+        printf("[ VIO ] Debug: Got visual point ptr: %p\n", (void*)pt);
+        fflush(stdout);
+      }
+      
+      if (!pt) {
+        printf("[ VIO ] Warning: Null visual point at index %d\n", map_idx);
+        continue;
+      }
+      
+      // Debug: About to access current_keypoints
+      if (match_idx < 5) {
+        printf("[ VIO ] Debug: About to access current_keypoints_[%d]\n", cur_idx);
+        fflush(stdout);
+      }
+      
+      const cv::KeyPoint& kp = current_keypoints_[cur_idx];
+      
+      if (match_idx < 5) {
+        printf("[ VIO ] Debug: Got keypoint at (%f, %f)\n", kp.pt.x, kp.pt.y);
+        fflush(stdout);
+      }
+      
+      // Validate visual point position
+      if (match_idx < 5) {
+        printf("[ VIO ] Debug: About to check pt->pos_ validity\n");
+        fflush(stdout);
+      }
+      
+      if (!pt->pos_.allFinite()) {
+        printf("[ VIO ] Warning: Visual point has invalid position\n");
+        continue;
+      }
+      
+      if (match_idx < 5) {
+        printf("[ VIO ] Debug: pt->pos_ is valid: (%.2f, %.2f, %.2f)\n",
+               pt->pos_[0], pt->pos_[1], pt->pos_[2]);
+        fflush(stdout);
+      }
+      
+      // Project map point to current frame
+      if (match_idx < 10) {
+        printf("[ VIO ] Debug: About to project point to current frame\n");
+        fflush(stdout);
+      }
+      
+      // Check if new_frame_ is valid
+      if (!new_frame_) {
+        printf("[ VIO ] Error: new_frame_ is null!\n");
+        continue;
+      }
+      
+      // Check if camera is valid
+      if (!new_frame_->cam_) {
+        printf("[ VIO ] Error: new_frame_->cam_ is null!\n");
+        continue;
+      }
+      
+      V2D pc_projected;
+      
+      // Manual projection to avoid crash
+      try {
+        // First transform to camera coordinates
+        V3D pt_cam = new_frame_->T_f_w_ * pt->pos_;
+        
+        if (match_idx < 10) {
+          printf("[ VIO ] Debug: pt_cam: (%.2f, %.2f, %.2f)\n", 
+                 pt_cam[0], pt_cam[1], pt_cam[2]);
+          fflush(stdout);
+        }
+        
+        // Check if point is behind camera
+        if (pt_cam[2] <= 0) {
+          if (match_idx < 10) {
+            printf("[ VIO ] Debug: Point behind camera, skipping\n");
+          }
+          continue;
+        }
+        
+        // Project using camera model
+        pc_projected = new_frame_->cam_->world2cam(pt_cam);
+        
+        if (match_idx < 10) {
+          printf("[ VIO ] Debug: Successfully projected to (%.2f, %.2f)\n",
+                 pc_projected[0], pc_projected[1]);
+          fflush(stdout);
+        }
+      } catch (...) {
+        printf("[ VIO ] Warning: Failed to project point to current frame\n");
+        continue;
+      }
+      
+      // Validate geometric consistency
+      if (match_idx < 10) {
+        printf("[ VIO ] Debug: About to validate match geometry\n");
+        fflush(stdout);
+      }
+      
+      bool geometry_valid = validateMatchGeometry(pt, kp, pc_projected);
+      
+      if (match_idx < 10) {
+        printf("[ VIO ] Debug: Geometry validation result: %s\n", geometry_valid ? "VALID" : "INVALID");
+        fflush(stdout);
+      }
+      
+      if (geometry_valid) {
+        if (match_idx < 10) {
+          printf("[ VIO ] Debug: Processing valid match - finding reference feature\n");
+          fflush(stdout);
+        }
+        
+        // Hybrid refinement: Extract patch and perform direct alignment
+        // Find a suitable reference feature from observations
+        std::shared_ptr<Feature> ref_ftr = nullptr;
+        if (pt->ref_patch) {
+          ref_ftr = pt->ref_patch;
+          if (match_idx < 10) {
+            printf("[ VIO ] Debug: Using existing ref_patch\n");
+            fflush(stdout);
+          }
+        } else {
+          if (match_idx < 10) {
+            printf("[ VIO ] Debug: No ref_patch, searching in %zu observations\n", pt->obs_.size());
+            fflush(stdout);
+          }
+          // If no ref_patch set yet, use the first observation with valid data
+          for (auto& ftr : pt->obs_) {
+            if (ftr && ftr->patch_ && !ftr->descriptor_.empty()) {
+              // No need to check pointer address with shared_ptr
+              
+              // Additional validation: check if the feature has valid pose data
+              try {
+                // Test if we can access the transformation
+                auto test_rot = ftr->T_f_w_.rotation_matrix();
+                auto test_trans = ftr->T_f_w_.translation();
+                ref_ftr = ftr;
+                break;
+              } catch (...) {
+                // Skip this feature if transformation is invalid
+                continue;
+              }
+            }
+          }
+        }
+        
+        if (match_idx < 10) {
+          printf("[ VIO ] Debug: ref_ftr = %p, is_normal_initialized = %d\n", 
+                 (void*)ref_ftr.get(), pt->is_normal_initialized_);
+          fflush(stdout);
+        }
+        
+        // Check if shared_ptr is valid
+        if (!ref_ftr) {
+          if (match_idx < 10) {
+            printf("[ VIO ] Warning: ref_ftr is null, skipping\n");
+          }
+          continue;
+        }
+        
+        if (ref_ftr && pt->is_normal_initialized_) {
+          if (match_idx < 10) {
+            printf("[ VIO ] Debug: Checking ref_ftr validity...\n");
+            fflush(stdout);
+          }
+          
+          // Skip if feature data seems invalid
+          if (ref_ftr->inv_expo_time_ <= 0) {
+            if (match_idx < 10) {
+              printf("[ VIO ] Debug: Invalid inv_expo_time: %f\n", ref_ftr->inv_expo_time_);
+            }
+            continue;
+          }
+          
+          if (match_idx < 10) {
+            printf("[ VIO ] Debug: inv_expo_time OK: %f\n", ref_ftr->inv_expo_time_);
+            printf("[ VIO ] Debug: About to check px_...\n");
+            fflush(stdout);
+          }
+          
+          if (std::isnan(ref_ftr->px_[0]) || std::isnan(ref_ftr->px_[1])) {
+            if (match_idx < 10) {
+              printf("[ VIO ] Debug: Invalid px_\n");
+            }
+            continue;
+          }
+          
+          if (match_idx < 10) {
+            printf("[ VIO ] Debug: px_ OK: (%.2f, %.2f)\n", ref_ftr->px_[0], ref_ftr->px_[1]);
+            printf("[ VIO ] Debug: About to check f_...\n");
+            fflush(stdout);
+          }
+          
+          if (std::isnan(ref_ftr->f_[0]) || std::isnan(ref_ftr->f_[1]) || std::isnan(ref_ftr->f_[2])) {
+            if (match_idx < 10) {
+              printf("[ VIO ] Debug: Invalid f_\n");
+            }
+            continue;
+          }
+          
+          if (match_idx < 10) {
+            printf("[ VIO ] Debug: f_ OK: (%.2f, %.2f, %.2f)\n", 
+                   ref_ftr->f_[0], ref_ftr->f_[1], ref_ftr->f_[2]);
+            printf("[ VIO ] Debug: All ref_ftr checks passed!\n");
+            fflush(stdout);
+          }
+          
+          // Get warp matrix for affine transformation
+          Matrix2d A_cur_ref;
+          int search_level;
+          bool warp_success = false;
+          
+          if (normal_en) {
+            // Attempt to compute warp matrix with normal method
+            try {
+              // First, test if we can access the transformation
+              Eigen::Matrix3d test_rot = new_frame_->T_f_w_.rotation_matrix();
+              if (!test_rot.allFinite()) continue;
+              
+              // Now try to compute what we need
+              V3D norm_vec = (test_rot * pt->normal_).normalized();
+              V3D pf = new_frame_->T_f_w_ * pt->pos_;
+              
+              // Create relative transformation carefully
+              SE3 T_w_ref = SE3(ref_ftr->T_f_w_.rotation_matrix(), ref_ftr->T_f_w_.translation());
+              SE3 T_cur_w = new_frame_->T_f_w_;
+              SE3 T_cur_ref = T_cur_w * T_w_ref.inverse();
+              
+              getWarpMatrixAffineHomography(*cam, ref_ftr->px_, pf, norm_vec, T_cur_ref, 0, A_cur_ref);
+              search_level = getBestSearchLevel(A_cur_ref, 2);
+              warp_success = true;
+            } catch (...) {
+              warp_success = false;
+            }
+          } else {
+            // Use depth-based method
+            try {
+              // Compute depth using point positions directly
+              double depth_ref = (pt->pos_ - new_frame_->T_f_w_.inverse().translation()).norm();
+              if (depth_ref <= 0 || std::isnan(depth_ref) || depth_ref > 100.0) continue;
+              
+              // Create relative transformation carefully
+              SE3 T_w_ref = SE3(ref_ftr->T_f_w_.rotation_matrix(), ref_ftr->T_f_w_.translation());
+              SE3 T_cur_w = new_frame_->T_f_w_;
+              SE3 T_cur_ref = T_cur_w * T_w_ref.inverse();
+              
+              getWarpMatrixAffine(*cam, ref_ftr->px_, ref_ftr->f_, 
+                                 depth_ref, T_cur_ref,
+                                 ref_ftr->level_, 0, patch_size_half, A_cur_ref);
+              search_level = getBestSearchLevel(A_cur_ref, 2);
+              warp_success = true;
+            } catch (...) {
+              warp_success = false;
+            }
+          }
+          
+          if (!warp_success) continue;
+          
+          // Warp reference patch
+          std::vector<float> patch_wrap(warp_len);
+          
+          // Check if reference image is available
+          if (!ref_ftr->img_.empty()) {
+            for (int pyramid_level = 0; pyramid_level <= patch_pyrimid_level - 1; pyramid_level++) {
+              warpAffine(A_cur_ref, ref_ftr->img_, ref_ftr->px_, ref_ftr->level_, 
+                        search_level, pyramid_level, patch_size_half, patch_wrap.data());
+            }
+          } else {
+            // If no image stored, use the pre-computed patch directly
+            if (ref_ftr->patch_) {
+              std::copy(ref_ftr->patch_, ref_ftr->patch_ + patch_size_total, patch_wrap.begin());
+            } else {
+              continue; // Skip this match if no patch data available
+            }
+          }
+          
+          // Extract current patch at matched keypoint location
+          V2D pc(kp.pt.x, kp.pt.y);
+          getImagePatch(img, pc, patch_buffer.data(), 0);
+          
+          // Calculate photometric error
+          float error = 0.0;
+          for (int ind = 0; ind < patch_size_total; ind++) {
+            error += (ref_ftr->inv_expo_time_ * patch_wrap[ind] - state->inv_expo_time * patch_buffer[ind]) *
+                     (ref_ftr->inv_expo_time_ * patch_wrap[ind] - state->inv_expo_time * patch_buffer[ind]);
+          }
+          
+          // Optional: NCC validation
+          if (ncc_en) {
+            double ncc = calculateNCC(patch_wrap.data(), patch_buffer.data(), patch_size_total);
+            if (ncc < ncc_thre) continue;
+          }
+          
+          // Check photometric error threshold
+          if (error > outlier_threshold * patch_size_total) continue;
+          
+          // Add to visual submap for tracking
+          visual_submap->voxel_points.push_back(pt);
+          visual_submap->propa_errors.push_back(error);
+          visual_submap->search_levels.push_back(search_level);
+          visual_submap->errors.push_back(error);
+          visual_submap->warp_patch.push_back(patch_wrap);
+          visual_submap->inv_expo_list.push_back(ref_ftr->inv_expo_time_);
+        }
+      }
+    }
+  }
+  
+  // Handle ray casting for unmatched areas (same as direct method)
+  if (raycast_en) {
+    for (int i = 0; i < length; i++) {
+      if (grid_num[i] == TYPE_MAP || border_flag[i] == 1) continue;
+      
+      for (const auto &it : rays_with_sample_points[i]) {
+        V3D sample_point_w = new_frame_->f2w(it);
+        
+        for (int j = 0; j < 3; j++) {
+          loc_xyz[j] = floor(sample_point_w[j] / voxel_size);
+          if (loc_xyz[j] < 0) { loc_xyz[j] -= 1.0; }
+        }
+        
+        VOXEL_LOCATION sample_pos(loc_xyz[0], loc_xyz[1], loc_xyz[2]);
+        
+        auto corre_sub_feat_map = sub_feat_map.find(sample_pos);
+        if (corre_sub_feat_map != sub_feat_map.end()) break;
+        
+        auto corre_feat_map = feat_map.find(sample_pos);
+        if (corre_feat_map != feat_map.end()) {
+          bool voxel_in_fov = false;
+          
+          std::vector<VisualPoint *> &voxel_points = corre_feat_map->second->voxel_points;
+          int voxel_num = voxel_points.size();
+          if (voxel_num == 0) continue;
+          
+          for (int j = 0; j < voxel_num; j++) {
+            VisualPoint *pt = voxel_points[j];
+            
+            if (pt == nullptr) continue;
+            if (pt->obs_.size() == 0) continue;
+            if (!pt->is_normal_initialized_) continue;
+            
+            V3D norm_vec(new_frame_->T_f_w_.rotation_matrix() * pt->normal_);
+            V3D dir(new_frame_->T_f_w_ * pt->pos_);
+            if (dir[2] < 0) continue;
+            dir.normalize();
+            
+            V2D pc(new_frame_->w2c(pt->pos_));
+            
+            if (new_frame_->cam_->isInFrame(pc.cast<int>(), border)) {
+              voxel_in_fov = true;
+              int index = static_cast<int>(pc[1] / grid_size) * grid_n_width + static_cast<int>(pc[0] / grid_size);
+              grid_num[index] = TYPE_MAP;
+              Vector3d obs_vec(new_frame_->pos() - pt->pos_);
+              
+              float cur_dist = obs_vec.norm();
+              
+              if (cur_dist <= map_dist[index]) {
+                map_dist[index] = cur_dist;
+                retrieve_voxel_points[index] = pt;
+              }
+            }
+          }
+          
+          if (voxel_in_fov) sub_feat_map[sample_pos] = 0;
+          break;
+        } else {
+          VOXEL_LOCATION sample_pos(loc_xyz[0], loc_xyz[1], loc_xyz[2]);
+          auto iter = plane_map.find(sample_pos);
+          if (iter != plane_map.end()) {
+            VoxelOctoTree *current_octo;
+            current_octo = iter->second->find_correspond(sample_point_w);
+            if (current_octo->plane_ptr_->is_plane_) {
+              pointWithVar plane_center;
+              VoxelPlane &plane = *current_octo->plane_ptr_;
+              plane_center.point_w = plane.center_;
+              plane_center.normal = plane.normal_;
+              visual_submap->add_from_voxel_map.push_back(plane_center);
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  total_points = visual_submap->voxel_points.size();
+  
+  double dt = omp_get_wtime() - ts0;
+  printf("[ VIO ] Descriptor-based retrieval: %d points tracked (%.3f ms)\n", 
+         total_points, dt * 1000);
+}
+
+bool VIOManager::validateMatchGeometry(VisualPoint* pt, const cv::KeyPoint& kp, const V2D& projected_pc)
+{
+  // Safety checks
+  if (!pt) {
+    printf("[ VIO ] validateMatchGeometry: pt is null\n");
+    return false;
+  }
+  
+  if (!projected_pc.allFinite()) {
+    printf("[ VIO ] validateMatchGeometry: projected_pc has invalid values\n");
+    return false;
+  }
+  
+  // Check projection error
+  float proj_error = sqrt(pow(projected_pc[0] - kp.pt.x, 2) + pow(projected_pc[1] - kp.pt.y, 2));
+  
+  // Adaptive threshold based on keypoint scale
+  float error_threshold = 5.0f * (1 << kp.octave);  // Scale-aware threshold
+  
+  if (proj_error > error_threshold) {
+    return false;
+  }
+  
+  // Additional checks can be added here:
+  // - Depth consistency check
+  // - Viewing angle check
+  // - Normal consistency check
+  
+  return true;
+}
+
 void VIOManager::computeJacobianAndUpdateEKF(cv::Mat img)
 {
   if (total_points == 0) return;
@@ -805,104 +1507,267 @@ void VIOManager::generateVisualMapPoints(cv::Mat img, vector<pointWithVar> &pg)
 {
   if (pg.size() <= 10) return;
 
-  // double t0 = omp_get_wtime();
-  for (int i = 0; i < pg.size(); i++)
-  {
-    if (pg[i].normal == V3D(0, 0, 0)) continue;
-
-    V3D pt = pg[i].point_w;
-    V2D pc(new_frame_->w2c(pt));
-
-    if (new_frame_->cam_->isInFrame(pc.cast<int>(), border)) // 20px is the patch size in the matcher
-    {
-      int index = static_cast<int>(pc[1] / grid_size) * grid_n_width + static_cast<int>(pc[0] / grid_size);
-
-      if (grid_num[index] != TYPE_MAP)
-      {
-        float cur_value = vk::shiTomasiScore(img, pc[0], pc[1]);
-        // if (cur_value < 5) continue;
-        if (cur_value > scan_value[index])
-        {
-          scan_value[index] = cur_value;
-          append_voxel_points[index] = pg[i];
-          grid_num[index] = TYPE_POINTCLOUD;
+  if (use_hybrid_mode_ && feature_detector_) {
+    // Phase 2.2: Hybrid mode - Associate detected features with LiDAR points
+    printf("[ VIO ] Hybrid mode: Associating %zu keypoints with LiDAR points\n", current_keypoints_.size());
+    
+    // Build a simple spatial index for LiDAR points (grid-based)
+    // Key: grid index, Value: vector of point indices
+    std::unordered_map<int, std::vector<int>> lidar_grid_index;
+    
+    // Index LiDAR points by grid
+    for (int i = 0; i < pg.size(); i++) {
+      if (pg[i].normal == V3D(0, 0, 0)) continue;
+      
+      V3D pt = pg[i].point_w;
+      V2D pc(new_frame_->w2c(pt));
+      
+      if (new_frame_->cam_->isInFrame(pc.cast<int>(), border)) {
+        int grid_idx = static_cast<int>(pc[1] / grid_size) * grid_n_width + static_cast<int>(pc[0] / grid_size);
+        lidar_grid_index[grid_idx].push_back(i);
+      }
+    }
+    
+    // For each detected keypoint, find the closest LiDAR point
+    int add = 0;
+    float search_radius = grid_size * grid_size; // Search radius in pixels
+    
+    for (const auto& kp : current_keypoints_) {
+      int kp_grid_idx = static_cast<int>(kp.pt.y / grid_size) * grid_n_width + static_cast<int>(kp.pt.x / grid_size);
+      
+      // Skip if this grid cell already has a map point
+      if (grid_num[kp_grid_idx] == TYPE_MAP) continue;
+      
+      // Search in current and neighboring grid cells
+      float min_dist = search_radius;
+      int best_lidar_idx = -1;
+      
+      for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -1; dx <= 1; dx++) {
+          int search_row = static_cast<int>(kp.pt.y / grid_size) + dy;
+          int search_col = static_cast<int>(kp.pt.x / grid_size) + dx;
+          
+          if (search_row < 0 || search_row >= grid_n_height || 
+              search_col < 0 || search_col >= grid_n_width) continue;
+              
+          int search_grid_idx = search_row * grid_n_width + search_col;
+          
+          auto it = lidar_grid_index.find(search_grid_idx);
+          if (it == lidar_grid_index.end()) continue;
+          
+          // Check all LiDAR points in this grid cell
+          for (int lidar_idx : it->second) {
+            V3D pt = pg[lidar_idx].point_w;
+            V2D pc(new_frame_->w2c(pt));
+            
+            float dist = sqrt(pow(pc[0] - kp.pt.x, 2) + pow(pc[1] - kp.pt.y, 2));
+            if (dist < min_dist) {
+              min_dist = dist;
+              best_lidar_idx = lidar_idx;
+            }
+          }
+        }
+      }
+      
+      // If we found a close LiDAR point, create a visual map point
+      if (best_lidar_idx >= 0 && min_dist < search_radius) {
+        // Use keypoint response for scoring instead of Shi-Tomasi
+        float score = kp.response;
+        
+        if (score > scan_value[kp_grid_idx]) {
+          scan_value[kp_grid_idx] = score;
+          append_voxel_points[kp_grid_idx] = pg[best_lidar_idx];
+          grid_num[kp_grid_idx] = TYPE_POINTCLOUD;
         }
       }
     }
-  }
-
-  for (int j = 0; j < visual_submap->add_from_voxel_map.size(); j++)
-  {
-    V3D pt = visual_submap->add_from_voxel_map[j].point_w;
-    V2D pc(new_frame_->w2c(pt));
-
-    if (new_frame_->cam_->isInFrame(pc.cast<int>(), border)) // 20px is the patch size in the matcher
-    {
-      int index = static_cast<int>(pc[1] / grid_size) * grid_n_width + static_cast<int>(pc[0] / grid_size);
-
-      if (grid_num[index] != TYPE_MAP)
-      {
-        float cur_value = vk::shiTomasiScore(img, pc[0], pc[1]);
-        if (cur_value > scan_value[index])
-        {
-          scan_value[index] = cur_value;
-          append_voxel_points[index] = visual_submap->add_from_voxel_map[j];
-          grid_num[index] = TYPE_POINTCLOUD;
+    
+    // Create visual points with descriptors
+    for (int i = 0; i < length; i++) {
+      if (grid_num[i] == TYPE_POINTCLOUD) {
+        pointWithVar pt_var = append_voxel_points[i];
+        V3D pt = pt_var.point_w;
+        
+        V3D norm_vec(new_frame_->T_f_w_.rotation_matrix() * pt_var.normal);
+        V3D dir(new_frame_->T_f_w_ * pt);
+        dir.normalize();
+        double cos_theta = dir.dot(norm_vec);
+        
+        V2D pc(new_frame_->w2c(pt));
+        
+        float *patch = new float[patch_size_total];
+        getImagePatch(img, pc, patch, 0);
+        
+        VisualPoint *pt_new = new VisualPoint(pt);
+        
+        Vector3d f = cam->cam2world(pc);
+        
+        // Find the keypoint descriptor for this location
+        cv::Mat descriptor;
+        for (size_t kp_idx = 0; kp_idx < current_keypoints_.size(); kp_idx++) {
+          const auto& kp = current_keypoints_[kp_idx];
+          int kp_grid_idx = static_cast<int>(kp.pt.y / grid_size) * grid_n_width + static_cast<int>(kp.pt.x / grid_size);
+          if (kp_grid_idx == i) {
+            descriptor = current_descriptors_.row(kp_idx).clone();
+            break;
+          }
         }
+        
+        // Validate new_frame_->T_f_w_ before creating Feature
+        try {
+          auto test_rot = new_frame_->T_f_w_.rotation_matrix();
+          if (!test_rot.allFinite()) {
+            printf("[ VIO ] Warning: Invalid transformation when creating feature, skipping point %d\n", i);
+            delete pt_new;
+            delete[] patch;
+            continue;
+          }
+        } catch (...) {
+          printf("[ VIO ] Error: Cannot access frame transformation when creating feature\n");
+          delete pt_new;
+          delete[] patch;
+          continue;
+        }
+        
+        auto ftr_new = std::make_shared<Feature>(pt_new, patch, pc, f, new_frame_->T_f_w_, 0, descriptor);
+        ftr_new->img_ = img;
+        ftr_new->id_ = new_frame_->id_;
+        ftr_new->inv_expo_time_ = state->inv_expo_time;
+        ftr_new->feature_type_ = feature_detector_->getFeatureType();
+        
+        pt_new->addFrameRef(ftr_new);
+        pt_new->covariance_ = pt_var.var;
+        pt_new->is_normal_initialized_ = true;
+        
+        if (cos_theta < 0) { pt_new->normal_ = -pt_var.normal; }
+        else { pt_new->normal_ = pt_var.normal; }
+        
+        pt_new->previous_normal_ = pt_new->normal_;
+        
+        insertPointIntoVoxelMap(pt_new);
+        add += 1;
       }
     }
-  }
-
-  // double t_b1 = omp_get_wtime() - t0;
-  // t0 = omp_get_wtime();
-
-  int add = 0;
-  for (int i = 0; i < length; i++)
-  {
-    if (grid_num[i] == TYPE_POINTCLOUD) // && (scan_value[i]>=50))
+    
+    printf("[ VIO ] Hybrid mode: Created %d new visual map points from features\n", add);
+    
+  } else {
+    // Original direct mode implementation
+    // double t0 = omp_get_wtime();
+    for (int i = 0; i < pg.size(); i++)
     {
-      pointWithVar pt_var = append_voxel_points[i];
-      V3D pt = pt_var.point_w;
+      if (pg[i].normal == V3D(0, 0, 0)) continue;
 
-      V3D norm_vec(new_frame_->T_f_w_.rotation_matrix() * pt_var.normal);
-      V3D dir(new_frame_->T_f_w_ * pt);
-      dir.normalize();
-      double cos_theta = dir.dot(norm_vec);
-      // if(std::fabs(cos_theta)<0.34) continue; // 70 degree
+      V3D pt = pg[i].point_w;
       V2D pc(new_frame_->w2c(pt));
 
-      float *patch = new float[patch_size_total];
-      getImagePatch(img, pc, patch, 0);
+      if (new_frame_->cam_->isInFrame(pc.cast<int>(), border)) // 20px is the patch size in the matcher
+      {
+        int index = static_cast<int>(pc[1] / grid_size) * grid_n_width + static_cast<int>(pc[0] / grid_size);
 
-      VisualPoint *pt_new = new VisualPoint(pt);
-
-      Vector3d f = cam->cam2world(pc);
-      Feature *ftr_new = new Feature(pt_new, patch, pc, f, new_frame_->T_f_w_, 0);
-      ftr_new->img_ = img;
-      ftr_new->id_ = new_frame_->id_;
-      ftr_new->inv_expo_time_ = state->inv_expo_time;
-
-      pt_new->addFrameRef(ftr_new);
-      pt_new->covariance_ = pt_var.var;
-      pt_new->is_normal_initialized_ = true;
-
-      if (cos_theta < 0) { pt_new->normal_ = -pt_var.normal; }
-      else { pt_new->normal_ = pt_var.normal; }
-      
-      pt_new->previous_normal_ = pt_new->normal_;
-
-      insertPointIntoVoxelMap(pt_new);
-      add += 1;
-      // map_cur_frame.push_back(pt_new);
+        if (grid_num[index] != TYPE_MAP)
+        {
+          float cur_value = vk::shiTomasiScore(img, pc[0], pc[1]);
+          // if (cur_value < 5) continue;
+          if (cur_value > scan_value[index])
+          {
+            scan_value[index] = cur_value;
+            append_voxel_points[index] = pg[i];
+            grid_num[index] = TYPE_POINTCLOUD;
+          }
+        }
+      }
     }
+
+    for (int j = 0; j < visual_submap->add_from_voxel_map.size(); j++)
+    {
+      V3D pt = visual_submap->add_from_voxel_map[j].point_w;
+      V2D pc(new_frame_->w2c(pt));
+
+      if (new_frame_->cam_->isInFrame(pc.cast<int>(), border)) // 20px is the patch size in the matcher
+      {
+        int index = static_cast<int>(pc[1] / grid_size) * grid_n_width + static_cast<int>(pc[0] / grid_size);
+
+        if (grid_num[index] != TYPE_MAP)
+        {
+          float cur_value = vk::shiTomasiScore(img, pc[0], pc[1]);
+          if (cur_value > scan_value[index])
+          {
+            scan_value[index] = cur_value;
+            append_voxel_points[index] = visual_submap->add_from_voxel_map[j];
+            grid_num[index] = TYPE_POINTCLOUD;
+          }
+        }
+      }
+    }
+
+    // double t_b1 = omp_get_wtime() - t0;
+    // t0 = omp_get_wtime();
+
+    int add = 0;
+    for (int i = 0; i < length; i++)
+    {
+      if (grid_num[i] == TYPE_POINTCLOUD) // && (scan_value[i]>=50))
+      {
+        pointWithVar pt_var = append_voxel_points[i];
+        V3D pt = pt_var.point_w;
+
+        V3D norm_vec(new_frame_->T_f_w_.rotation_matrix() * pt_var.normal);
+        V3D dir(new_frame_->T_f_w_ * pt);
+        dir.normalize();
+        double cos_theta = dir.dot(norm_vec);
+        // if(std::fabs(cos_theta)<0.34) continue; // 70 degree
+        V2D pc(new_frame_->w2c(pt));
+
+        float *patch = new float[patch_size_total];
+        getImagePatch(img, pc, patch, 0);
+
+        VisualPoint *pt_new = new VisualPoint(pt);
+
+        Vector3d f = cam->cam2world(pc);
+        // Validate new_frame_->T_f_w_ before creating Feature
+        try {
+          auto test_rot = new_frame_->T_f_w_.rotation_matrix();
+          if (!test_rot.allFinite()) {
+            printf("[ VIO ] Warning: Invalid transformation in direct mode, skipping point %d\n", i);
+            delete pt_new;
+            delete[] patch;
+            continue;
+          }
+        } catch (...) {
+          printf("[ VIO ] Error: Cannot access frame transformation in direct mode\n");
+          delete pt_new;
+          delete[] patch;
+          continue;
+        }
+        
+        auto ftr_new = std::make_shared<Feature>(pt_new, patch, pc, f, new_frame_->T_f_w_, 0);
+        ftr_new->img_ = img;
+        ftr_new->id_ = new_frame_->id_;
+        ftr_new->inv_expo_time_ = state->inv_expo_time;
+
+        pt_new->addFrameRef(ftr_new);
+        pt_new->covariance_ = pt_var.var;
+        pt_new->is_normal_initialized_ = true;
+
+        if (cos_theta < 0) { pt_new->normal_ = -pt_var.normal; }
+        else { pt_new->normal_ = pt_var.normal; }
+        
+        pt_new->previous_normal_ = pt_new->normal_;
+
+        insertPointIntoVoxelMap(pt_new);
+        add += 1;
+        // map_cur_frame.push_back(pt_new);
+      }
+    }
+
+    // double t_b2 = omp_get_wtime() - t0;
+
+    printf("[ VIO ] Append %d new visual map points\n", add);
+    // printf("pg.size: %d \n", pg.size());
+    // printf("B1. : %.6lf \n", t_b1);
+    // printf("B2. : %.6lf \n", t_b2);
   }
-
-  // double t_b2 = omp_get_wtime() - t0;
-
-  printf("[ VIO ] Append %d new visual map points\n", add);
-  // printf("pg.size: %d \n", pg.size());
-  // printf("B1. : %.6lf \n", t_b1);
-  // printf("B2. : %.6lf \n", t_b2);
 }
 
 void VIOManager::updateVisualMapPoints(cv::Mat img)
@@ -928,7 +1793,7 @@ void VIOManager::updateVisualMapPoints(cv::Mat img)
     getImagePatch(img, pc, patch_temp, 0);
     // TODO: condition: distance and view_angle
     // Step 1: time
-    Feature *last_feature = pt->obs_.back();
+    std::shared_ptr<Feature> last_feature = pt->obs_.back();
     // if(new_frame_->id_ >= last_feature->id_ + 10) add_flag = true; // 10
 
     // Step 2: delta_pose
@@ -946,7 +1811,7 @@ void VIOManager::updateVisualMapPoints(cv::Mat img)
     // Maintain the size of 3D point observation features.
     if (pt->obs_.size() >= 30)
     {
-      Feature *ref_ftr;
+      std::shared_ptr<Feature> ref_ftr;
       pt->findMinScoreFeature(new_frame_->pos(), ref_ftr);
       pt->deleteFeatureRef(ref_ftr);
       // cout<<"pt->obs_.size() exceed 20 !!!!!!"<<endl;
@@ -956,10 +1821,36 @@ void VIOManager::updateVisualMapPoints(cv::Mat img)
       update_num += 1;
       update_flag[i] = 1;
       Vector3d f = cam->cam2world(pc);
-      Feature *ftr_new = new Feature(pt, patch_temp, pc, f, new_frame_->T_f_w_, visual_submap->search_levels[i]);
+      
+      // Phase 2.2: Handle descriptors in hybrid mode
+      cv::Mat descriptor;
+      std::string feature_type = "DIRECT";
+      
+      if (use_hybrid_mode_ && feature_detector_) {
+        // Find the closest keypoint to this location
+        float min_dist = 10.0; // Maximum distance to consider (in pixels)
+        int best_kp_idx = -1;
+        
+        for (size_t kp_idx = 0; kp_idx < current_keypoints_.size(); kp_idx++) {
+          const auto& kp = current_keypoints_[kp_idx];
+          float dist = sqrt(pow(pc[0] - kp.pt.x, 2) + pow(pc[1] - kp.pt.y, 2));
+          if (dist < min_dist) {
+            min_dist = dist;
+            best_kp_idx = kp_idx;
+          }
+        }
+        
+        if (best_kp_idx >= 0) {
+          descriptor = current_descriptors_.row(best_kp_idx).clone();
+          feature_type = feature_detector_->getFeatureType();
+        }
+      }
+      
+      auto ftr_new = std::make_shared<Feature>(pt, patch_temp, pc, f, new_frame_->T_f_w_, visual_submap->search_levels[i], descriptor);
       ftr_new->img_ = img;
       ftr_new->id_ = new_frame_->id_;
       ftr_new->inv_expo_time_ = state->inv_expo_time;
+      ftr_new->feature_type_ = feature_type;
       pt->addFrameRef(ftr_new);
     }
   }
@@ -1036,7 +1927,7 @@ void VIOManager::updateReferencePatch(const unordered_map<VOXEL_LOCATION, VoxelO
     float score_max = -1000.;
     for (auto it = pt->obs_.begin(), ite = pt->obs_.end(); it != ite; ++it)
     {
-      Feature *ref_patch_temp = *it;
+      std::shared_ptr<Feature> ref_patch_temp = *it;
       float *patch_temp = ref_patch_temp->patch_;
       float NCC_up = 0.0;
       float NCC_down1 = 0.0;
@@ -1130,7 +2021,7 @@ void VIOManager::projectPatchFromRefToCur(const unordered_map<VOXEL_LOCATION, Vo
 
     if (pt->is_normal_initialized_)
     {
-      Feature *ref_ftr;
+      std::shared_ptr<Feature> ref_ftr;
       ref_ftr = pt->ref_patch;
       // Feature* ref_ftr;
       V2D pc(new_frame_->w2c(pt->pos_));
@@ -1270,7 +2161,7 @@ void VIOManager::projectPatchFromRefToCur(const unordered_map<VOXEL_LOCATION, Vo
 
     if (!pt->is_normal_initialized_) continue;
 
-    Feature *ref_ftr;
+    std::shared_ptr<Feature> ref_ftr;
     V2D pc(new_frame_->w2c(pt->pos_));
     ref_ftr = pt->ref_patch;
 
@@ -1700,7 +2591,20 @@ void VIOManager::plotTrackedPoints()
 {
   int total_points = visual_submap->voxel_points.size();
   if (total_points == 0) return;
-  // int inlier_count = 0;
+  
+  // Phase 2: Visualize detected features in hybrid mode
+  if (use_hybrid_mode_ && feature_detector_) {
+    // Draw all detected keypoints in light blue
+    for (const auto& kp : current_keypoints_) {
+      cv::circle(img_cp, cv::Point2f(kp.pt.x, kp.pt.y), 3, cv::Scalar(255, 255, 0), -1, 8); // Light blue
+    }
+    
+    // Add text showing feature detector type and count
+    std::string feature_text = feature_detector_->getFeatureType() + ": " + std::to_string(current_keypoints_.size());
+    cv::putText(img_cp, feature_text, cv::Point2f(20, 40), cv::FONT_HERSHEY_COMPLEX, 0.6, cv::Scalar(255, 255, 0), 1, 8, 0);
+  }
+  
+  // inlier_count = 0;
   // for (int i = 0; i < img_cp.rows / grid_size; i++)
   // {
   //   cv::line(img_cp, cv::Poaint2f(0, grid_size * i), cv::Point2f(img_cp.cols, grid_size * i), cv::Scalar(255, 255, 255), 1, CV_AA);
@@ -1798,6 +2702,23 @@ void VIOManager::processFrame(cv::Mat &img, vector<pointWithVar> &pg, const unor
 
   new_frame_.reset(new Frame(cam, img));
   updateFrameState(*state);
+  
+  // Phase 2.1: Centralized Feature Detection
+  if (use_hybrid_mode_ && feature_detector_) {
+    // Clear previous frame's features
+    current_keypoints_.clear();
+    current_descriptors_ = cv::Mat();
+    
+    // Detect features using selected detector
+    feature_detector_->detectAndCompute(img, current_keypoints_, current_descriptors_);
+    
+    printf("[ VIO ] Detected %zu features using %s detector\n", 
+           current_keypoints_.size(), 
+           feature_detector_->getFeatureType().c_str());
+  } else {
+    // Direct mode - no feature detection needed
+    printf("[ VIO ] Using direct photometric mode\n");
+  }
   
   resetGrid();
 

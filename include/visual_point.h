@@ -14,6 +14,7 @@ which is included as part of this source code package.
 #define LIVO_POINT_H_
 
 #include <boost/noncopyable.hpp>
+#include <memory>
 #include "common_lib.h"
 #include "frame.h"
 
@@ -29,20 +30,20 @@ public:
   Vector3d normal_;             //!< Surface normal at point.
   Matrix3d normal_information_; //!< Inverse covariance matrix of normal estimation.
   Vector3d previous_normal_;    //!< Last updated normal vector.
-  list<Feature *> obs_;         //!< Reference patches which observe the point.
-  Eigen::Matrix3d covariance_;  //!< Covariance of the point.
-  bool is_converged_;           //!< True if the point is converged.
-  bool is_normal_initialized_;  //!< True if the normal is initialized.
-  bool has_ref_patch_;          //!< True if the point has a reference patch.
-  Feature *ref_patch;           //!< Reference patch of the point.
+  list<std::shared_ptr<Feature>> obs_;  //!< Reference patches which observe the point.
+  Eigen::Matrix3d covariance_;           //!< Covariance of the point.
+  bool is_converged_;                    //!< True if the point is converged.
+  bool is_normal_initialized_;           //!< True if the normal is initialized.
+  bool has_ref_patch_;                   //!< True if the point has a reference patch.
+  std::shared_ptr<Feature> ref_patch;    //!< Reference patch of the point.
 
   VisualPoint(const Vector3d &pos);
   ~VisualPoint();
-  void findMinScoreFeature(const Vector3d &framepos, Feature *&ftr) const;
+  void findMinScoreFeature(const Vector3d &framepos, std::shared_ptr<Feature> &ftr) const;
   void deleteNonRefPatchFeatures();
-  void deleteFeatureRef(Feature *ftr);
-  void addFrameRef(Feature *ftr);
-  bool getCloseViewObs(const Vector3d &pos, Feature *&obs, const Vector2d &cur_px) const;
+  void deleteFeatureRef(std::shared_ptr<Feature> ftr);
+  void addFrameRef(std::shared_ptr<Feature> ftr);
+  bool getCloseViewObs(const Vector3d &pos, std::shared_ptr<Feature> &obs, const Vector2d &cur_px) const;
 };
 
 #endif // LIVO_POINT_H_

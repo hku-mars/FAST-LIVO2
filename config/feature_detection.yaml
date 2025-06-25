@@ -1,0 +1,52 @@
+# Feature Detection Configuration for FAST-LIVO2
+
+# Feature type: ORB, SIFT, SURF, AKAZE, DIRECT
+feature_type: "ORB"
+
+# Use hybrid mode (feature detection + direct refinement)
+use_hybrid: true
+
+# ORB detector parameters
+orb:
+  nfeatures: 1000          # Maximum number of features to detect
+  scale_factor: 1.2        # Pyramid decimation ratio
+  nlevels: 8               # Number of pyramid levels
+  edge_threshold: 31       # Edge threshold (pixels from border where features are not detected)
+  first_level: 0           # First level in pyramid (0 = original resolution)
+  WTA_K: 2                 # Number of points for BRIEF descriptor (2, 3, or 4)
+  score_type: 0            # 0 = Harris score, 1 = FAST score
+  patch_size: 31           # Size of patch for BRIEF descriptor
+  fast_threshold: 20       # FAST threshold
+
+# SIFT detector parameters (when implemented)
+sift:
+  nfeatures: 0             # 0 = no limit
+  nOctaveLayers: 3         # Number of layers in each octave
+  contrastThreshold: 0.04  # Contrast threshold
+  edgeThreshold: 10        # Edge threshold
+  sigma: 1.6               # Gaussian sigma
+
+# SURF detector parameters (when implemented)
+surf:
+  hessianThreshold: 100    # Hessian threshold
+  nOctaves: 4              # Number of pyramid octaves
+  nOctaveLayers: 3         # Number of layers within each octave
+  extended: false          # Use 64-element (false) or 128-element (true) descriptors
+  upright: false           # Compute rotation-invariant (false) or upright (true) descriptors
+
+# AKAZE detector parameters (when implemented)
+akaze:
+  descriptor_type: 5       # 5 = MLDB (recommended)
+  descriptor_size: 0       # 0 = full size
+  descriptor_channels: 3   # Number of channels in descriptor (1, 2, or 3)
+  threshold: 0.001         # Detector response threshold
+  nOctaves: 4              # Number of octaves
+  nOctaveLayers: 4         # Number of layers per octave
+  diffusivity: 1           # 0 = PM_G1, 1 = PM_G2, 2 = WEICKERT, 3 = CHARBONNIER
+
+# Matching parameters
+matching:
+  hamming_threshold: 50    # For binary descriptors (ORB)
+  l2_threshold: 0.3        # For floating point descriptors (SIFT, SURF)
+  ratio_test: 0.8          # Lowe's ratio test threshold
+  cross_check: true        # Enable cross-check validation 

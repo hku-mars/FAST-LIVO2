@@ -14,12 +14,13 @@ which is included as part of this source code package.
 #define LIVO_FRAME_H_
 
 #include <boost/noncopyable.hpp>
+#include <memory>
 #include <vikit/abstract_camera.h>
 
 class VisualPoint;
 struct Feature;
 
-typedef list<Feature *> Features;
+typedef list<std::shared_ptr<Feature>> Features;
 typedef vector<cv::Mat> ImgPyr;
 
 /// A frame saves the image, the associated features and the estimated pose.
