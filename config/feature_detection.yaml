@@ -4,7 +4,7 @@
 feature_type: "ORB"
 
 # Use hybrid mode (feature detection + direct refinement)
-use_hybrid: true
+use_hybrid: true 
 
 # ORB detector parameters
 orb:
