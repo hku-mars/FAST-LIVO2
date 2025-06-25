@@ -14,7 +14,7 @@ which is included as part of this source code package.
 #define PREPROCESS_H_
 
 #include "common_lib.h"
-#include <livox_ros_driver/CustomMsg.h>
+#include <livox_ros_driver2/msg/custom_msg.hpp>
 #include <pcl_conversions/pcl_conversions.h>
 
 using namespace std;
@@ -70,13 +70,13 @@ struct EIGEN_ALIGN16 Point
 {
   PCL_ADD_POINT4D;
   float intensity;
-  float time;
+  std::uint32_t t;
   std::uint16_t ring;
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 } // namespace velodyne_ros
 POINT_CLOUD_REGISTER_POINT_STRUCT(velodyne_ros::Point,
-                                  (float, x, x)(float, y, y)(float, z, z)(float, intensity, intensity)(float, time, time)(std::uint16_t, ring, ring))
+                                  (float, x, x)(float, y, y)(float, z, z)(float, intensity, intensity)(std::uint32_t, t, t)(std::uint16_t, ring, ring))
 /****************/
 
 /*** Ouster ***/
@@ -121,32 +121,30 @@ namespace Pandar128_ros
 struct EIGEN_ALIGN16 Point
 {
   PCL_ADD_POINT4D;
-  uint8_t intensity;
-  double timestamp;
-  uint16_t ring;
+  float timestamp;
+  uint8_t ring;
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 } // namespace Pandar128_ros
 POINT_CLOUD_REGISTER_POINT_STRUCT(Pandar128_ros::Point,
-                                  (float, x, x)(float, y, y)(float, z, z)(std::uint8_t, intensity, intensity)(double, timestamp, timestamp)(std::uint16_t, ring, ring))
+                                  (float, x, x)(float, y, y)(float, z, z)(float, timestamp, timestamp))
 /*****************/
 
-/*** Robosense_Airy ***/
-namespace robosense_ros
-{
-struct EIGEN_ALIGN16 Point
-{
+/*** LIVOX_MID-360 ***/
+namespace mid360_ros {
+struct EIGEN_ALIGN16 Point {
   PCL_ADD_POINT4D;
   float intensity;
+  std::uint8_t tag;
+  std::uint8_t line;
   double timestamp;
-  uint16_t ring;
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
-} // namespace robosense_ros
-POINT_CLOUD_REGISTER_POINT_STRUCT(robosense_ros::Point,
-                                  (float, x, x)(float, y, y)(float, z, z)(float, intensity, intensity)(double, timestamp, timestamp)(std::uint16_t, ring, ring))
+  } // namespace mid360_ros
+  POINT_CLOUD_REGISTER_POINT_STRUCT(mid360_ros::Point,
+                                    (float, x, x)(float, y, y)(float, z, z)(float, intensity, intensity)
+                                    (std::uint8_t, tag, tag)(std::uint8_t, line, line)(double, timestamp, timestamp))
 /*****************/
-
 class Preprocess
 {
 public:
@@ -155,11 +153,11 @@ public:
   Preprocess();
   ~Preprocess();
 
-  void process(const livox_ros_driver::CustomMsg::ConstPtr &msg, PointCloudXYZI::Ptr &pcl_out);
-  void process(const sensor_msgs::PointCloud2::ConstPtr &msg, PointCloudXYZI::Ptr &pcl_out);
+  void process(const livox_ros_driver2::msg::CustomMsg::SharedPtr &msg, PointCloudXYZI::Ptr &pcl_out);
+  void process(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg, PointCloudXYZI::Ptr &pcl_out);
   void set(bool feat_en, int lid_type, double bld, int pfilt_num);
 
-  // sensor_msgs::PointCloud2::ConstPtr pointcloud;
+  // sensor_msgs::msg::PointCloud2::ConstSharedPtr pointcloud;
   PointCloudXYZI pl_full, pl_corn, pl_surf;
   PointCloudXYZI pl_buff[128]; // maximum 128 line lidar
   vector<orgtype> typess[128]; // maximum 128 line lidar
@@ -167,18 +165,20 @@ public:
   
   double blind, blind_sqr;
   bool feature_enabled, given_offset_time;
-  ros::Publisher pub_full, pub_surf, pub_corn;
+  std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> pub_full;
+  std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> pub_surf;
+  std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> pub_corn;
 
 private:
-  void avia_handler(const livox_ros_driver::CustomMsg::ConstPtr &msg);
-  void oust64_handler(const sensor_msgs::PointCloud2::ConstPtr &msg);
-  void velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg);
-  void xt32_handler(const sensor_msgs::PointCloud2::ConstPtr &msg);
-  void Pandar128_handler(const sensor_msgs::PointCloud2::ConstPtr &msg);
-  void robosense_handler(const sensor_msgs::PointCloud2::ConstPtr &msg);
-  void l515_handler(const sensor_msgs::PointCloud2::ConstPtr &msg);
+  void avia_handler(const livox_ros_driver2::msg::CustomMsg::SharedPtr &msg);
+  void oust64_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
+  void velodyne_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
+  void mid360_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
+  void xt32_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
+  void Pandar128_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
+  void l515_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
   void give_feature(PointCloudXYZI &pl, vector<orgtype> &types);
-  void pub_func(PointCloudXYZI &pl, const ros::Time &ct);
+  void pub_func(PointCloudXYZI &pl, const rclcpp::Time &ct);
   int plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, uint i, uint &i_nex, Eigen::Vector3d &curr_direct);
   bool small_plane(const PointCloudXYZI &pl, vector<orgtype> &types, uint i_cur, uint &i_nex, Eigen::Vector3d &curr_direct);
   bool edge_jump_judge(const PointCloudXYZI &pl, vector<orgtype> &types, uint i, Surround nor_dir);

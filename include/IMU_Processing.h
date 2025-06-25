@@ -14,12 +14,14 @@ which is included as part of this source code package.
 #define IMU_PROCESSING_H
 
 #include <Eigen/Eigen>
+#include <fstream>
 #include "common_lib.h"
 #include <condition_variable>
-#include <nav_msgs/Odometry.h>
+#include <nav_msgs/msg/odometry.hpp>
 #include <utils/so3_math.h>
-#include <fstream>
-const bool time_list(PointType &x, PointType &y) { return (x.curvature < y.curvature); }
+
+const bool time_list(PointType &x,
+                     PointType &y); //{return (x.curvature < y.curvature);};
 
 /// *************IMU Process and undistortion
 class ImuProcess
@@ -31,7 +33,7 @@ public:
   ~ImuProcess();
 
   void Reset();
-  void Reset(double start_timestamp, const sensor_msgs::ImuConstPtr &lastimu);
+  void Reset(double start_timestamp, const sensor_msgs::msg::Imu::ConstSharedPtr &lastimu);
   void set_extrinsic(const V3D &transl, const M3D &rot);
   void set_extrinsic(const V3D &transl);
   void set_extrinsic(const MD(4, 4) & T);
@@ -68,7 +70,7 @@ private:
   void IMU_init(const MeasureGroup &meas, StatesGroup &state, int &N);
   void Forward_without_imu(LidarMeasureGroup &meas, StatesGroup &state_inout, PointCloudXYZI &pcl_out);
   PointCloudXYZI pcl_wait_proc;
-  sensor_msgs::ImuConstPtr last_imu;
+  sensor_msgs::msg::Imu::ConstSharedPtr last_imu;
   PointCloudXYZI::Ptr cur_pcl_un_;
   vector<Pose6D> IMUpose;
   M3D Lid_rot_to_IMU;
