@@ -5,6 +5,7 @@ common:
   img_en: 1
   lidar_en: 1
   ros_driver_bug_fix: false
+  
 
 extrin_calib:
   extrinsic_T: [-0.006253, 0.011775, 0.03055]
