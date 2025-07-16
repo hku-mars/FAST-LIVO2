@@ -1,34 +1,34 @@
 common:
-  img_topic: "/left/image_raw"
-  lid_topic: "/os1_cloud_node1/points"
-  imu_topic: "/imu/imu"
+  img_topic: "/flir_driver/camera1/image"
+  lid_topic: "/points"
+  imu_topic: "/imu"
   img_en: 1
   lidar_en: 1
   ros_driver_bug_fix: false
 
 extrin_calib:
-  extrinsic_T: [-0.050, 0.000, 0.055]
-  extrinsic_R: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+  extrinsic_T: [-0.006253, 0.011775, 0.03055]
+  extrinsic_R: [-1, 0, 0, 0, -1, 0, 0, 0, 1]
   # NTU_VIRAL
-  Rcl: [0.0218308, 0.99976, -0.00201407,
-        -0.0131205, 0.00230088, 0.999911,
-        0.999676, -0.0218025, 0.0131676]
-  Pcl: [0.122993,  0.0398643, -0.0577101]
+  Rcl: [0.00015717779, -0.01599804877, 0.99987201067,
+     -0.99999357035, -0.00358459191, 0.00009984308,
+      0.00358253582, -0.99986559754, -0.01599850933]
+  Pcl: [0.08372735744, 0.02091938060, -0.13379192488]
 
-time_offset:
+time_offset: #일단 대충
   lidar_time_offset: -0.1
   imu_time_offset: 0.0
   img_time_offset: 0.0
   exposure_time_init: 0.0
 
-preprocess:
+preprocess: 
   point_filter_num: 3
   filter_size_surf: 0.1
   lidar_type: 3 # Ouster
-  scan_line: 16
+  scan_line: 128
   blind: 1.0
 
-vio:
+vio: #일단 대충
   max_iterations: 5
   outlier_threshold: 1000 # 78 100 156 #100 200 500 700 infinite
   img_point_cov: 100 # 100 1000 
@@ -40,13 +40,14 @@ vio:
   exposure_estimate_en: true
   inv_expo_cov: 0.1
 
-imu:
+imu: #일단 ig_lio/config/ncd.yaml 에서 가져옴
+
   imu_en: true
   imu_int_frame: 30
-  acc_cov: 0.5 # 0.2
-  gyr_cov: 0.3 # 0.5
-  b_acc_cov: 0.0001 # 0.1
-  b_gyr_cov: 0.0001 # 0.1
+  acc_cov: 0.001249
+  gyr_cov: 0.000208
+  b_acc_cov: 0.000106
+  b_gyr_cov: 0.000004
 
 lio:
   max_iterations: 5
