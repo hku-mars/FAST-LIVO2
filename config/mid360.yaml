@@ -1,0 +1,89 @@
+common:
+  img_topic: "/image/compressed"
+  lid_topic: "/livox/lidar"
+  imu_topic: "/livox/imu"
+  img_en: 1
+  lidar_en: 1
+  ros_driver_bug_fix: false
+  img_type: 1 # 0:image 1:compressed image
+  config_path: "/home/jack/ros/catkin_ws/src/FAST-LIVO2/config/fisheye_instrinct.yaml"
+extrin_calib:
+  extrinsic_T: [-0.011, -0.02329, 0.04412]
+  extrinsic_R: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+  Rcl: [ -0.000235,  -0.999961,   0.008798,
+          0.268389,  -0.008538,  -0.963273,
+          0.963311,   0.002134,   0.268381] 
+  Pcl: [-0.003253,  -0.085513,  -0.037127]
+  # Rcl: [0,-1,0,0.258819,0,-0.965926,0.965926,0,0.258819]
+  # Pcl: [0.0,-0.077,-0.035]
+
+time_offset: 
+  imu_time_offset: 0.0
+  img_time_offset: 0.1 #相机时间偏移，雷达和相机每一帧时间偏移的纠正值
+  exposure_time_init: 0.0
+  lidar_time_offset: 0.0
+# 预处理参数
+preprocess:
+  point_filter_num: 1 #点云滤波次数
+  filter_size_surf: 0.1 #表面滤波器尺寸
+  lidar_type: 2 # 1：LIVOX类型 2：标准类型
+  scan_line: 4 # 扫描线数
+  blind: 0.8 # 盲区设置
+
+vio:
+  max_iterations: 5 #最大迭代次数
+  outlier_threshold: 1000 # 78 100 156 #100 200 500 700 infinite #离群点阈值
+  img_point_cov: 100 # 100 1000 图像特征点协方差
+  patch_size: 8 #视觉特征块大小
+  patch_pyrimid_level: 4 #视觉金字塔层数
+  normal_en: true #是否用法向量计算
+  raycast_en: false #是否用光线投射
+  inverse_composition_en: false # 是否使用逆组合方法
+  exposure_estimate_en: true #是否启用曝光时间估计
+  inv_expo_cov: 0.1 #曝光时间估计协方差
+
+imu:
+  imu_en: true #是否启用IMU
+  imu_int_frame: 30 #
+  acc_cov: 1.0 # 0.2
+  gyr_cov: 0.5 # 0.5
+  b_acc_cov: 0.0001 # 0.1
+  b_gyr_cov: 0.0001 # 0.1
+
+lio:
+  max_iterations: 5
+  dept_err: 0.02
+  beam_err: 0.05
+  min_eigen_value: 0.0025 # 0.005
+  voxel_size: 0.5
+  max_layer: 2
+  max_points_num: 50
+  layer_init_num: [5, 5, 5, 5, 5]
+
+local_map:  
+  map_sliding_en: false
+  half_map_size: 100
+  sliding_thresh: 8
+
+uav:
+  imu_rate_odom: false
+  gravity_align_en: true
+
+publish:
+  dense_map_en: true
+  pub_effect_point_en: false 
+  pub_plane_en: false
+  pub_scan_num: 1
+  blind_rgb_points: 0.0
+
+evo:
+  seq_name: "CBD_Building_01"
+  pose_output_en: false
+
+pcd_save:
+  pcd_save_en: true
+  colmap_output_en: true # need to set interval = -1
+  filter_size_pcd: 0.07
+  interval: -1
+  # how many LiDAR frames saved in each pcd file;
+  # -1 : all frames will be saved in ONE pcd file, may lead to memory crash when having too much frames.

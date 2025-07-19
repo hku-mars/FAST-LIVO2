@@ -65,8 +65,8 @@ void Preprocess::process(const sensor_msgs::PointCloud2::ConstPtr &msg, PointClo
     oust64_handler(msg);
     break;
 
-  case VELO16:
-    velodyne_handler(msg);
+  case 2:
+    StandHandler(msg);
     break;
 
   case L515:
@@ -340,7 +340,40 @@ void Preprocess::oust64_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
   // pub_func(pl_surf, pub_full, msg->header.stamp);
   // pub_func(pl_surf, pub_corn, msg->header.stamp);
 }
-
+void Preprocess::StandHandler(const sensor_msgs::PointCloud2::ConstPtr &msg)
+{
+    pl_surf.clear();
+    pcl::PointCloud<livox_ros::Point> pl_orig;
+    pcl::fromROSMsg(*msg, pl_orig);
+    uint plsize = pl_orig.points.size();
+    printf("[ Preprocess ] Input point number: %d \n", plsize);
+    pl_surf.reserve(plsize);
+  
+    for (uint i = 0; i < plsize; i++) {
+  
+      if (i % point_filter_num == 0) {
+  
+        double range = pl_orig.points[i].x * pl_orig.points[i].x +
+                       pl_orig.points[i].y * pl_orig.points[i].y +
+                       pl_orig.points[i].z * pl_orig.points[i].z;
+  
+        if (range < blind_) {
+          continue;
+        }
+  
+        PointType p;
+        p.x = pl_orig.points[i].x;
+        p.y = pl_orig.points[i].y;
+        p.z = pl_orig.points[i].z;
+  
+        p.intensity = pl_orig.points[i].intensity;
+        p.curvature = pl_orig.points[i].offset_time * 1e3;
+        pl_surf.push_back(p);
+      }
+      
+    }
+    printf("[ Preprocess ] Output point number: %zu \n", pl_surf.size());
+  }
 #define MAX_LINE_NUM 64
 
 void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)

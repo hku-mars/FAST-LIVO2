@@ -1,0 +1,21 @@
+%YAML:1.0
+---
+ reproject_error: 3.1333777373929422e-01
+ camera_type: mei
+ image_width: 2592
+ image_height: 1944
+ mirror_parameters:
+   xi: 1.5148439182662163e+00
+ distortion_parameters:
+   k1: -3.4341204550989679e-01
+   k2: 1.8607166373402004e-01
+   p1: -1.2803869253299146e-03
+   p2: -2.0419882356113479e-03
+ projection_parameters:
+   fx: 2.6043530044065797e+03
+   fy: 2.6042012647025858e+03
+   cx: 1.3354715881868383e+03
+   cy: 9.7496218169337158e+02
+
+ pinhole_image_width: 2560
+ pinhole_image_height: 1440

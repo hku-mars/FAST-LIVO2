@@ -1,0 +1,26 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/usr/include/**",
+                "/usr/local/include/**",
+                "/opt/ros/noetic/include/**",
+                "/home/jack/ros/catkin_ws/src/rpg_vikit/vikit_common/include/**",
+                "/home/jack/ros/catkin_ws/src/rpg_vikit/vikit_ros/include/**",
+                "/usr/local/cuda/include/**",
+                "/usr/include/opencv4/**",
+                "/usr/include/eigen3/**",
+                "/usr/include/boost/**",  
+                "/home/jack/ros/catkin_ws/src/FAST-LIVO2/include/**"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c17",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}

@@ -5,7 +5,7 @@ common:
   img_en: 1
   lidar_en: 1
   ros_driver_bug_fix: false
-
+  img_type: 0 # 0:image 1:compressed image
 extrin_calib:
   extrinsic_T: [0.04165, 0.02326, -0.0284]
   extrinsic_R: [1, 0, 0, 0, 1, 0, 0, 0, 1]
@@ -77,9 +77,9 @@ evo:
   pose_output_en: false
 
 pcd_save:
-  pcd_save_en: false
-  colmap_output_en: false # need to set interval = -1
-  filter_size_pcd: 0.15
+  pcd_save_en: true
+  colmap_output_en: true # need to set interval = -1
+  filter_size_pcd: 0.05
   interval: -1
   # how many LiDAR frames saved in each pcd file;
   # -1 : all frames will be saved in ONE pcd file, may lead to memory crash when having too much frames.

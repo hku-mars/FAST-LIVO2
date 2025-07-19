@@ -1762,8 +1762,10 @@ V3F VIOManager::getInterpolatedPixel(cv::Mat img, V2D pc)
 void VIOManager::dumpDataForColmap()
 {
   static int cnt = 1;
+  static int cnt_ = 1;
   std::ostringstream ss;
-  ss << std::setw(5) << std::setfill('0') << cnt;
+  if(cnt == 1||cnt%2 == 0){
+  ss << std::setw(5) << std::setfill('0') << cnt_;
   std::string cnt_str = ss.str();
   std::string image_path = std::string(ROOT_DIR) + "Log/Colmap/images/" + cnt_str + ".png";
   
@@ -1780,6 +1782,8 @@ void VIOManager::dumpDataForColmap()
             << 1 << " "  // CAMERA_ID (假设相机ID为1)
             << cnt_str << ".png" << std::endl;
   fout_colmap << "0.0 0.0 -1" << std::endl;
+  cnt_++;
+  }
   cnt++;
 }
 

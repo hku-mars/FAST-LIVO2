@@ -21,6 +21,7 @@ which is included as part of this source code package.
 #include <nav_msgs/Path.h>
 #include <vikit/camera_loader.h>
 
+typedef pcl::PointCloud<PointType> PointCloud;
 class LIVMapper
 {
 public:
@@ -49,6 +50,7 @@ public:
   void livox_pcl_cbk(const livox_ros_driver::CustomMsg::ConstPtr &msg_in);
   void imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in);
   void img_cbk(const sensor_msgs::ImageConstPtr &msg_in);
+  void compressed_img_cbk(const sensor_msgs::CompressedImageConstPtr &msg_in);
   void publish_img_rgb(const image_transport::Publisher &pubImage, VIOManagerPtr vio_manager);
   void publish_frame_world(const ros::Publisher &pubLaserCloudFullRes, VIOManagerPtr vio_manager);
   void publish_visual_sub_map(const ros::Publisher &pubSubVisualMap);
@@ -57,11 +59,16 @@ public:
   void publish_mavros(const ros::Publisher &mavros_pose_publisher);
   void publish_path(const ros::Publisher pubPath);
   void readParameters(ros::NodeHandle &nh);
+  Eigen::Vector2d projectPinhole2Omni(Eigen::Vector3d pt, const Eigen::Matrix3d& pinhole_intrinsics_inv,const Eigen::Matrix3d& R, const Eigen::Vector3d& t);
+  Eigen::Vector2d omniCamera2Pixel(const Eigen::Vector3d& p_c);
+  void pinhole2OmniMap();
   template <typename T> void set_posestamp(T &out);
   template <typename T> void pointBodyToWorld(const Eigen::Matrix<T, 3, 1> &pi, Eigen::Matrix<T, 3, 1> &po);
   template <typename T> Eigen::Matrix<T, 3, 1> pointBodyToWorld(const Eigen::Matrix<T, 3, 1> &pi);
   cv::Mat getImageFromMsg(const sensor_msgs::ImageConstPtr &img_msg);
-
+  cv::Mat getImageFromMsg(const sensor_msgs::CompressedImageConstPtr &img_msg);
+  Eigen::Vector2d distortion(const Eigen::Vector2d& p_u);
+  bool loadParameters();
   std::mutex mtx_buffer, mtx_buffer_imu_prop;
   std::condition_variable sig_buffer;
 
@@ -118,6 +125,7 @@ public:
   double plot_time;
   int frame_cnt;
   double img_time_offset = 0.0;
+  string config_path_;
   deque<PointCloudXYZI::Ptr> lid_raw_data_buffer;
   deque<double> lid_header_time_buffer;
   deque<sensor_msgs::Imu::ConstPtr> imu_buffer;
@@ -129,7 +137,8 @@ public:
   vector<double> cameraextrinT;
   vector<double> cameraextrinR;
   double IMG_POINT_COV;
-
+  std::ofstream f_save;
+  std::string pose_save_path;
   PointCloudXYZI::Ptr visual_sub_map;
   PointCloudXYZI::Ptr feats_undistort;
   PointCloudXYZI::Ptr feats_down_body;
@@ -183,5 +192,14 @@ public:
   double aver_time_icp = 0;
   double aver_time_map_inre = 0;
   bool colmap_output_en = false;
+  std::string camera_type_;
+  int width_, height_;
+  double fx_, fy_, cx_, cy_, k1_, k2_, p1_, p2_, xi_;
+  int pinhole_image_width_, pinhole_image_height_;
+  Eigen::Matrix3d pinhole_intrinsics_;
+  bool no_distortion_ = false;
+  cv::Mat mapX, mapY;
+  
 };
+  
 #endif

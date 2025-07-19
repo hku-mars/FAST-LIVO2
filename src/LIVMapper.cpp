@@ -25,6 +25,7 @@ LIVMapper::LIVMapper(ros::NodeHandle &nh)
   p_imu.reset(new ImuProcess());
 
   readParameters(nh);
+  pinhole2OmniMap();
   VoxelMapConfig voxel_config;
   loadVoxelConfig(nh, voxel_config);
 
@@ -49,12 +50,17 @@ LIVMapper::~LIVMapper() {}
 
 void LIVMapper::readParameters(ros::NodeHandle &nh)
 {
+  nh.param<string>("save_pose_path", pose_save_path,"");
+  f_save.open(pose_save_path + "/fastlivo_pose.txt");
+  f_save << std::fixed << std::setprecision(6);
   nh.param<string>("common/lid_topic", lid_topic, "/livox/lidar");
   nh.param<string>("common/imu_topic", imu_topic, "/livox/imu");
   nh.param<bool>("common/ros_driver_bug_fix", ros_driver_fix_en, false);
   nh.param<int>("common/img_en", img_en, 1);
   nh.param<int>("common/lidar_en", lidar_en, 1);
   nh.param<string>("common/img_topic", img_topic, "/left_camera/image");
+  nh.param<int>("common/img_type", p_pre->imag_type, 0);
+  nh.param<string>("common/config_path", config_path_, "/home/jack/ros/catkin_ws/src/FAST-LIVO2/config/fisheye_instrinct.yaml");
 
   nh.param<bool>("vio/normal_en", normal_en, true);
   nh.param<bool>("vio/inverse_composition_en", inverse_composition_en, false);
@@ -190,8 +196,10 @@ void LIVMapper::initializeSubscribersAndPublishers(ros::NodeHandle &nh, image_tr
             nh.subscribe(lid_topic, 200000, &LIVMapper::livox_pcl_cbk, this): 
             nh.subscribe(lid_topic, 200000, &LIVMapper::standard_pcl_cbk, this);
   sub_imu = nh.subscribe(imu_topic, 200000, &LIVMapper::imu_cbk, this);
-  sub_img = nh.subscribe(img_topic, 200000, &LIVMapper::img_cbk, this);
-  
+  // sub_img = nh.subscribe(img_topic, 200000, &LIVMapper::img_cbk, this);
+  sub_img = p_pre->imag_type == 0 ? 
+            nh.subscribe(img_topic, 200000, &LIVMapper::img_cbk, this) : 
+            nh.subscribe(img_topic, 200000, &LIVMapper::compressed_img_cbk, this);
   pubLaserCloudFullRes = nh.advertise<sensor_msgs::PointCloud2>("/cloud_registered", 100);
   pubNormal = nh.advertise<visualization_msgs::MarkerArray>("visualization_marker", 100);
   pubSubVisualMap = nh.advertise<sensor_msgs::PointCloud2>("/cloud_visual_sub_map_before", 100);
@@ -524,6 +532,7 @@ void LIVMapper::savePCD()
                 << " with point count: " << pcl_wait_save_intensity->points.size() << RESET << std::endl;
     }
   }
+  f_save.close();
 }
 
 void LIVMapper::run() 
@@ -725,7 +734,7 @@ void LIVMapper::livox_pcl_cbk(const livox_ros_driver::CustomMsg::ConstPtr &msg_i
     // imu_time_offset = timediff_imu_wrt_lidar;
   }
 
-  double cur_head_time = msg->header.stamp.toSec();
+  double cur_head_time = msg->header.stamp.toSec() + lidar_time_offset;
   ROS_INFO("Get LiDAR, its header time: %.6f", cur_head_time);
   if (cur_head_time < last_timestamp_lidar)
   {
@@ -809,7 +818,12 @@ cv::Mat LIVMapper::getImageFromMsg(const sensor_msgs::ImageConstPtr &img_msg)
   img = cv_bridge::toCvCopy(img_msg, "bgr8")->image;
   return img;
 }
-
+cv::Mat LIVMapper::getImageFromMsg(const sensor_msgs::CompressedImageConstPtr &img_msg)
+{
+  cv_bridge::CvImageConstPtr ptr;
+  ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8);
+  return ptr->image;
+}
 void LIVMapper::img_cbk(const sensor_msgs::ImageConstPtr &msg_in)
 {
   if (!img_en) return;
@@ -852,6 +866,11 @@ void LIVMapper::img_cbk(const sensor_msgs::ImageConstPtr &msg_in)
   }
 
   cv::Mat img_cur = getImageFromMsg(msg);
+  cv::Mat remapped_img;
+  //cv::remap(img_cur, remapped_img, mapX, mapY, cv::INTER_LINEAR);
+  // cv::imshow("img", remapped_img);
+  // cv::waitKey(10);
+  //img_buffer.push_back(remapped_img);
   img_buffer.push_back(img_cur);
   img_time_buffer.push_back(img_time_correct);
 
@@ -864,7 +883,57 @@ void LIVMapper::img_cbk(const sensor_msgs::ImageConstPtr &msg_in)
   mtx_buffer.unlock();
   sig_buffer.notify_all();
 }
+void LIVMapper::compressed_img_cbk(const sensor_msgs::CompressedImageConstPtr &msg_in)
+{
+  if (!img_en) return;
+  sensor_msgs::CompressedImage::Ptr msg(new sensor_msgs::CompressedImage(*msg_in));
+  // if ((abs(msg->header.stamp.toSec() - last_timestamp_img) > 0.2 && last_timestamp_img > 0) || sync_jump_flag)
+  // {
+  //   ROS_WARN("img jumps %.3f\n", msg->header.stamp.toSec() - last_timestamp_img);
+  //   sync_jump_flag = true;
+  //   msg->header.stamp = ros::Time().fromSec(last_timestamp_img + 0.1);
+  // }
 
+  double msg_header_time = msg->header.stamp.toSec() + img_time_offset;
+  //double msg_header_time = msg->header.stamp.toSec();
+  if (abs(msg_header_time - last_timestamp_img) < 0.001) return;
+  ROS_INFO("Get compressed image, its header time: %.6f", msg_header_time);
+  if (last_timestamp_lidar < 0) return;
+
+  if (msg_header_time < last_timestamp_img)
+  {
+    ROS_ERROR("image loop back. \n");
+    return;
+  }
+
+  mtx_buffer.lock();
+
+  double img_time_correct = msg_header_time; // last_timestamp_lidar + 0.105;
+
+  if (img_time_correct - last_timestamp_img < 0.02)
+  {
+    ROS_WARN("Image need Jumps: %.6f", img_time_correct);
+    mtx_buffer.unlock();
+    sig_buffer.notify_all();
+    return;
+  }
+
+  cv::Mat img_cur = getImageFromMsg(msg);
+  cv::Mat remapped_img;
+  cv::remap(img_cur, remapped_img, mapX, mapY, cv::INTER_LINEAR);
+  // cv::imshow("img", remapped_img);
+  img_buffer.push_back(remapped_img);
+  img_time_buffer.push_back(img_time_correct);
+  
+  // ROS_INFO("Correct Image time: %.6f", img_time_correct);
+
+  last_timestamp_img = img_time_correct;
+  // cv::imshow("img", img);
+  // cv::waitKey(1);
+  // cout<<"last_timestamp_img:::"<<last_timestamp_img<<endl;
+  mtx_buffer.unlock();
+  sig_buffer.notify_all();
+}
 bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
 {
   if (lid_raw_data_buffer.empty() && lidar_en) return false;
@@ -1119,8 +1188,8 @@ void LIVMapper::publish_frame_world(const ros::Publisher &pubLaserCloudFullRes, 
   PointCloudXYZRGB::Ptr laserCloudWorldRGB(new PointCloudXYZRGB());
   if (img_en)
   {
-    static int pub_num = 1;
-    *pcl_wait_pub += *pcl_w_wait_pub;
+    static int pub_num = 1; //static关键字表示这个变量的生命周期是整个程序运行期间
+    *pcl_wait_pub += *pcl_w_wait_pub;//将pcl_w_wait_pub指针指向的值加到pcl_wait_pub指针指向的值上
     if(pub_num == pub_scan_num)
     {
       pub_num = 1;
@@ -1145,13 +1214,6 @@ void LIVMapper::publish_frame_world(const ros::Publisher &pubLaserCloudFullRes, 
           pointRGB.r = pixel[2];
           pointRGB.g = pixel[1];
           pointRGB.b = pixel[0];
-          // pointRGB.r = pixel[2] * inv_expo; pointRGB.g = pixel[1] * inv_expo; pointRGB.b = pixel[0] * inv_expo;
-          // if (pointRGB.r > 255) pointRGB.r = 255;
-          // else if (pointRGB.r < 0) pointRGB.r = 0;
-          // if (pointRGB.g > 255) pointRGB.g = 255;
-          // else if (pointRGB.g < 0) pointRGB.g = 0;
-          // if (pointRGB.b > 255) pointRGB.b = 255;
-          // else if (pointRGB.b < 0) pointRGB.b = 0;
           if (pf.norm() > blind_rgb_points) laserCloudWorldRGB->push_back(pointRGB);
         }
       }
@@ -1267,6 +1329,30 @@ template <typename T> void LIVMapper::set_posestamp(T &out)
   out.orientation.y = geoQuat.y;
   out.orientation.z = geoQuat.z;
   out.orientation.w = geoQuat.w;
+  
+    Eigen::Matrix4d T_wi = Eigen::Matrix4d::Identity();
+    Eigen::Quaterniond q(
+    out.orientation.w,
+    out.orientation.x,
+    out.orientation.y,
+    out.orientation.z);
+    T_wi.block<3, 3>(0, 0) = q.toRotationMatrix();
+    T_wi.block<3, 1>(0, 3) = Eigen::Vector3d(_state.pos_end(0), _state.pos_end(1), _state.pos_end(2));
+    Eigen::Matrix4d T_il = Eigen::Matrix4d::Identity();
+    Eigen::Matrix3d Lidar_R_wrt_IMU ;
+    Lidar_R_wrt_IMU << extrinR[0], extrinR[1], extrinR[2],
+                        extrinR[3], extrinR[4], extrinR[5],
+                        extrinR[6], extrinR[7], extrinR[8];
+    Eigen::Vector3d Lidar_T_wrt_IMU;
+    Lidar_T_wrt_IMU << extrinT[0], extrinT[1], extrinT[2];
+    T_il.block<3,3>(0,0) = Lidar_R_wrt_IMU;
+    T_il.block<3,1>(0,3) = Lidar_T_wrt_IMU;
+    Eigen::Matrix4d T_wl = T_wi * T_il;
+    Eigen::Quaterniond q_wl(T_wl.block<3,3>(0,0));
+    Eigen::Vector3d t_wl(T_wl.block<3,1>(3,0));
+    // f_save<< lidar_end_time << " " << t_wl[0] << " " << t_wl[1] << " " << t_wl[2] << " "
+    //         << q_wl.x() << " " << q_wl.y() << " " << q_wl.z() << " " << q_wl.w() << endl;
+  
 }
 
 void LIVMapper::publish_odometry(const ros::Publisher &pubOdomAftMapped)
@@ -1304,4 +1390,111 @@ void LIVMapper::publish_path(const ros::Publisher pubPath)
   msg_body_pose.header.frame_id = "camera_init";
   path.poses.push_back(msg_body_pose);
   pubPath.publish(path);
+}
+void LIVMapper::pinhole2OmniMap()
+{
+      if (!config_path_.empty()) {
+      if (!loadParameters()) {
+
+        std::cerr << "Failed to load parameters from: " << config_path_ << std::endl;
+        return;
+      }
+    }
+    Eigen::Matrix3d pinhole_intrinsics_inv = pinhole_intrinsics_.inverse();
+    mapX.create(pinhole_image_height_, pinhole_image_width_, CV_32FC1);
+    mapY.create(pinhole_image_height_, pinhole_image_width_, CV_32FC1);
+    for (int i = 0; i < pinhole_image_height_; i++) {
+        for (int j = 0; j < pinhole_image_width_; j++) {
+            Eigen::Vector3d pt(j, i, 1);
+            Eigen::Vector2d pt2D = projectPinhole2Omni(pt, pinhole_intrinsics_inv, 
+                                                     Eigen::Matrix3d::Identity(), 
+                                                     Eigen::Vector3d::Zero());
+            mapX.at<float>(i, j) = pt2D.x();
+            mapY.at<float>(i, j) = pt2D.y();
+        }
+    }
+    
+    // cv::Mat remapped_img;
+    // cv::remap(img, remapped_img, mapX, mapY, cv::INTER_LINEAR);
+    // return remapped_img;
+    std::cout << "Pinhole to Omni mapping completed." << std::endl;
+}
+
+Eigen::Vector2d LIVMapper::projectPinhole2Omni(
+    Eigen::Vector3d pt, const Eigen::Matrix3d& pinhole_intrinsics_inv,
+    const Eigen::Matrix3d& R, const Eigen::Vector3d& t) {
+
+  Eigen::Vector3d p_c = R * (pinhole_intrinsics_inv * pt) + t;
+
+  return omniCamera2Pixel(p_c);
+}
+Eigen::Vector2d LIVMapper::omniCamera2Pixel(const Eigen::Vector3d& p_c) {
+  Eigen::Vector2d p_u, p_d;
+  double z = p_c(2) + xi_ * p_c.norm();
+  p_u << p_c(0) / z, p_c(1) / z;
+  if (no_distortion_) {
+    p_d = p_u;
+  } else {
+    Eigen::Vector2d d_u = distortion(p_u);
+    p_d = p_u + d_u;
+  }
+  Eigen::Vector2d p;
+  p << fx_ * p_d(0) + cx_, fy_ * p_d(1) + cy_;
+  return p;
+}
+
+bool LIVMapper::loadParameters() {
+  cv::FileStorage fs(config_path_, cv::FileStorage::READ);
+  if (!fs.isOpened()) {
+    return false;
+  }
+  camera_type_ = static_cast<std::string>(fs["camera_type"]);
+  width_ = static_cast<int>(fs["image_width"]);
+  height_ = static_cast<int>(fs["image_height"]);
+
+  cv::FileNode n = fs["distortion_parameters"];
+  k1_ = static_cast<double>(n["k1"]);
+  k2_ = static_cast<double>(n["k2"]);
+  p1_ = static_cast<double>(n["p1"]);
+  p2_ = static_cast<double>(n["p2"]);
+
+  n = fs["projection_parameters"];
+  fx_ = static_cast<double>(n["fx"]);
+  fy_ = static_cast<double>(n["fy"]);
+  cx_ = static_cast<double>(n["cx"]);
+  cy_ = static_cast<double>(n["cy"]);
+  
+  pinhole_image_width_ = static_cast<int>(fs["pinhole_image_width"]);
+  pinhole_image_height_ = static_cast<int>(fs["pinhole_image_height"]);
+  pinhole_intrinsics_.setIdentity();
+  pinhole_intrinsics_(0, 0) = pinhole_image_width_ * 0.5;
+  pinhole_intrinsics_(0, 2) = pinhole_image_width_ * 0.5;
+  pinhole_intrinsics_(1, 1) = pinhole_image_width_ * 0.5;
+  pinhole_intrinsics_(1, 2) = pinhole_image_height_ * 0.5;
+  if (camera_type_.compare("mei") == 0) {
+    n = fs["mirror_parameters"];
+    xi_ = static_cast<double>(n["xi"]);
+  }
+  no_distortion_ =
+      (k1_ < 1.0e-8) && (k2_ == 1.0e-8) && (p1_ == 1.0e-8) && (p2_ == 1.0e-8)
+          ? true
+          : false;
+  fs.release();
+  std::cout<<"k1: "<<k1_<<", k2: "<<k2_<<", p1: "<<p1_<<", p2: "<<p2_<<std::endl;
+  std::cout<<"fx: "<<fx_<<", fy: "<<fy_<<", cx: "<<cx_<<", cy: "<<cy_<<std::endl;
+  std::cout<<"xi: "<<xi_<<", no_distortion: "<<no_distortion_<<std::endl; 
+  return true;
+}
+Eigen::Vector2d LIVMapper::distortion(const Eigen::Vector2d& p_u) {
+  double mx2_u = p_u(0) * p_u(0);
+  double my2_u = p_u(1) * p_u(1);
+  double mxy_u = p_u(0) * p_u(1);
+  double rho2_u = mx2_u + my2_u;
+  double rad_dist_u = k1_ * rho2_u + k2_ * rho2_u * rho2_u;
+  double xd =
+      p_u(0) * rad_dist_u + 2.0 * p1_ * mxy_u + p2_ * (rho2_u + 2.0 * mx2_u);
+  double yd =
+      p_u(1) * rad_dist_u + 2.0 * p2_ * mxy_u + p1_ * (rho2_u + 2.0 * my2_u);
+  Eigen::Vector2d d_u(xd, yd);
+  return d_u;
 }
