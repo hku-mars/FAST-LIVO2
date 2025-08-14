@@ -108,6 +108,8 @@ public:
 
   double img_point_cov, outlier_threshold, ncc_thre;
   
+  float plane_voxel_size;
+
   SubSparseMap *visual_submap;
   std::vector<std::vector<V3D>> rays_with_sample_points;
 

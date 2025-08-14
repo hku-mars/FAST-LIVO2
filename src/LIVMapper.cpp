@@ -138,6 +138,7 @@ void LIVMapper::initializeComponents()
   vio_manager->grid_n_width = grid_n_width;
   vio_manager->grid_n_height = grid_n_height;
   vio_manager->patch_pyrimid_level = patch_pyrimid_level;
+  vio_manager->plane_voxel_size = voxelmap_manager->config_setting_.max_voxel_size_;
   vio_manager->exposure_estimate_en = exposure_estimate_en;
   vio_manager->colmap_output_en = colmap_output_en;
   vio_manager->initializeVIO();
