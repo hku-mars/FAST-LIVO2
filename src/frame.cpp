@@ -37,6 +37,9 @@ void Frame::initFrame(const cv::Mat &img)
 {
   if (img.empty()) { throw std::runtime_error("Frame: provided image is empty"); }
 
+
+  std::cout << "img.cols: " << img.cols << ", img.rows: " << img.rows << std::endl;
+  std::cout << "cam.width: " << cam_->width() << ", cam.height: " << cam_->height() << std::endl;
   if (img.cols != cam_->width() || img.rows != cam_->height())
   {
     throw std::runtime_error("Frame: provided image has not the same size as the camera model");
