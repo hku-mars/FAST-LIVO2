@@ -55,7 +55,7 @@ void LIVMapper::readParameters(ros::NodeHandle &nh)
   nh.param<int>("common/img_en", img_en, 1);
   nh.param<int>("common/lidar_en", lidar_en, 1);
   nh.param<string>("common/img_topic", img_topic, "/left_camera/image");
-
+  nh.param<bool>("common/is_compressed_image", is_compressed_image, false);
   nh.param<bool>("vio/normal_en", normal_en, true);
   nh.param<bool>("vio/inverse_composition_en", inverse_composition_en, false);
   nh.param<int>("vio/max_iterations", max_iterations, 5);
@@ -190,8 +190,14 @@ void LIVMapper::initializeSubscribersAndPublishers(ros::NodeHandle &nh, image_tr
             nh.subscribe(lid_topic, 200000, &LIVMapper::livox_pcl_cbk, this): 
             nh.subscribe(lid_topic, 200000, &LIVMapper::standard_pcl_cbk, this);
   sub_imu = nh.subscribe(imu_topic, 200000, &LIVMapper::imu_cbk, this);
-  sub_img = nh.subscribe(img_topic, 200000, &LIVMapper::img_cbk, this);
-  
+  if (is_compressed_image)
+  {
+    sub_img = nh.subscribe(img_topic, 200000, &LIVMapper::compressed_cbk, this);
+  }
+  else
+  {
+    sub_img = nh.subscribe(img_topic, 200000, &LIVMapper::img_cbk, this);
+  }
   pubLaserCloudFullRes = nh.advertise<sensor_msgs::PointCloud2>("/cloud_registered", 100);
   pubNormal = nh.advertise<visualization_msgs::MarkerArray>("visualization_marker", 100);
   pubSubVisualMap = nh.advertise<sensor_msgs::PointCloud2>("/cloud_visual_sub_map_before", 100);
@@ -810,6 +816,20 @@ cv::Mat LIVMapper::getImageFromMsg(const sensor_msgs::ImageConstPtr &img_msg)
   return img;
 }
 
+cv::Mat LIVMapper::getImageFromCompressedMsg(const sensor_msgs::CompressedImageConstPtr &img_msg)
+{
+  cv::Mat img;
+  try
+  {
+      cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8);
+      img = cv_ptr->image;
+  }
+  catch (cv_bridge::Exception &e)
+  {
+      ROS_ERROR("cv_bridge exception: %s", e.what());
+  }
+  return img;
+}
 void LIVMapper::img_cbk(const sensor_msgs::ImageConstPtr &msg_in)
 {
   if (!img_en) return;
@@ -864,6 +884,62 @@ void LIVMapper::img_cbk(const sensor_msgs::ImageConstPtr &msg_in)
   mtx_buffer.unlock();
   sig_buffer.notify_all();
 }
+
+void LIVMapper::compressed_cbk(const sensor_msgs::CompressedImageConstPtr &msg_in)
+{
+  if (!img_en) return;
+  sensor_msgs::CompressedImage::Ptr msg(new sensor_msgs::CompressedImage(*msg_in));
+  // if ((abs(msg->header.stamp.toSec() - last_timestamp_img) > 0.2 && last_timestamp_img > 0) || sync_jump_flag)
+  // {
+  //   ROS_WARN("img jumps %.3f\n", msg->header.stamp.toSec() - last_timestamp_img);
+  //   sync_jump_flag = true;
+  //   msg->header.stamp = ros::Time().fromSec(last_timestamp_img + 0.1);
+  // }
+
+  // Hiliti2022 40Hz
+  if (hilti_en)
+  {
+    static int frame_counter = 0;
+    if (++frame_counter % 4 != 0) return;
+  }
+  // double msg_header_time =  msg->header.stamp.toSec();
+  double msg_header_time = msg->header.stamp.toSec() + img_time_offset;
+  if (abs(msg_header_time - last_timestamp_img) < 0.001) return;
+  ROS_INFO("Get image, its header time: %.6f", msg_header_time);
+  if (last_timestamp_lidar < 0) return;
+
+  if (msg_header_time < last_timestamp_img)
+  {
+    ROS_ERROR("image loop back. \n");
+    return;
+  }
+
+  mtx_buffer.lock();
+
+  double img_time_correct = msg_header_time; // last_timestamp_lidar + 0.105;
+
+  if (img_time_correct - last_timestamp_img < 0.02)
+  {
+    ROS_WARN("Image need Jumps: %.6f", img_time_correct);
+    mtx_buffer.unlock();
+    sig_buffer.notify_all();
+    return;
+  }
+
+  cv::Mat img_cur = getImageFromCompressedMsg(msg);
+  img_buffer.push_back(img_cur);
+  img_time_buffer.push_back(img_time_correct);
+
+  // ROS_INFO("Correct Image time: %.6f", img_time_correct);
+
+  last_timestamp_img = img_time_correct;
+  // cv::imshow("img", img);
+  // cv::waitKey(1);
+  // cout<<"last_timestamp_img:::"<<last_timestamp_img<<endl;
+  mtx_buffer.unlock();
+  sig_buffer.notify_all();
+}
+
 
 bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
 {

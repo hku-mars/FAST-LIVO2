@@ -91,7 +91,7 @@ struct EIGEN_ALIGN16 Point
 };
 } // namespace urbanloco_ros
 POINT_CLOUD_REGISTER_POINT_STRUCT(urbanloco_ros::Point,
-                                  (float, x, x)(float, y, y)(float, z, z)(float, intensity, intensity)(std::uint16_t, ring, ring))
+                                  (float, x, x)(float, y, y)(float, z, z)(float, intensity, intensity)(std::uint32_t, ring, ring))
 /****************/
 
 /*** Ouster ***/
