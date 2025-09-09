@@ -1,8 +1,10 @@
 common:
   img_topic: "/camera/color/image_raw/compressed"
-  is_compressed_image: true
   lid_topic: "/ouster/points"
   imu_topic: "/imu/data"
+  is_compressed_image: true
+  dynamic_slam: true
+  mask_topic: ""
   img_en: 1             # Enable visual mode
   lidar_en: 1           # Enable lidar mode
   ros_driver_bug_fix: false
