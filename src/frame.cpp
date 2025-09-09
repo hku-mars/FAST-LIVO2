@@ -28,6 +28,13 @@ Frame::Frame(vk::AbstractCamera *cam, const cv::Mat &img)
   initFrame(img);
 }
 
+Frame::Frame(vk::AbstractCamera *cam, const cv::Mat &img, const cv::Mat &mask)
+    : id_(frame_counter_++), 
+      cam_(cam)
+{
+  initFrame(img, mask);
+}
+
 Frame::~Frame()
 {
   std::for_each(fts_.begin(), fts_.end(), [&](Feature *i) { delete i; });
@@ -48,6 +55,25 @@ void Frame::initFrame(const cv::Mat &img)
   if (img.type() != CV_8UC1) { throw std::runtime_error("Frame: provided image is not grayscale"); }
 
   img_ = img;
+}
+
+
+void Frame::initFrame(const cv::Mat &img, const cv::Mat &mask)
+{
+  if (img.empty()) { throw std::runtime_error("Frame: provided image is empty"); }
+
+
+  std::cout << "img.cols: " << img.cols << ", img.rows: " << img.rows << std::endl;
+  std::cout << "cam.width: " << cam_->width() << ", cam.height: " << cam_->height() << std::endl;
+  if (img.cols != cam_->width() || img.rows != cam_->height())
+  {
+    throw std::runtime_error("Frame: provided image has not the same size as the camera model");
+  }
+
+  if (img.type() != CV_8UC1) { throw std::runtime_error("Frame: provided image is not grayscale"); }
+
+  img_ = img;
+  mask_ = mask;
 }
 
 /// Utility functions for the Frame class
