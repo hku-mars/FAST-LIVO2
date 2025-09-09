@@ -140,6 +140,7 @@ public:
   deque<double> lid_header_time_buffer;
   deque<sensor_msgs::Imu::ConstPtr> imu_buffer;
   deque<cv::Mat> img_buffer;
+  deque<cv::Mat> mask_buffer;
   deque<double> img_time_buffer;
   vector<pointWithVar> _pv_list;
   vector<double> extrinT;

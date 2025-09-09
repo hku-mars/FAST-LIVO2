@@ -1069,61 +1069,65 @@ void LIVMapper::img_mask_cbk(const sensor_msgs::ImageConstPtr &img_msg, const se
 
 void LIVMapper::compressed_mask_cbk(const sensor_msgs::CompressedImageConstPtr &img_msg, const sensor_msgs::ImageConstPtr &mask_msg)
 {
-    // if (!img_en)
-    //     return;
-    // sensor_msgs::Image::Ptr msg(new sensor_msgs::Image(*img_msg));
-    // // if ((abs(msg->header.stamp.toSec() - last_timestamp_img) > 0.2 && last_timestamp_img > 0) || sync_jump_flag)
-    // // {
-    // //   ROS_WARN("img jumps %.3f\n", msg->header.stamp.toSec() - last_timestamp_img);
-    // //   sync_jump_flag = true;
-    // //   msg->header.stamp = ros::Time().fromSec(last_timestamp_img + 0.1);
-    // // }
-
-    // // Hiliti2022 40Hz
-    // if (hilti_en)
-    // {
-    //     static int frame_counter = 0;
-    //     if (++frame_counter % 4 != 0)
-    //         return;
-    // }
-    // // double msg_header_time =  msg->header.stamp.toSec();
-    // double msg_header_time = msg->header.stamp.toSec() + img_time_offset;
-    // if (abs(msg_header_time - last_timestamp_img) < 0.001)
-    //     return;
-    // ROS_INFO("Get image, its header time: %.6f", msg_header_time);
-    // if (last_timestamp_lidar < 0)
-    //     return;
-
-    // if (msg_header_time < last_timestamp_img)
-    // {
-    //     ROS_ERROR("image loop back. \n");
-    //     return;
-    // }
-
-    // mtx_buffer.lock();
-
-    // double img_time_correct = msg_header_time; // last_timestamp_lidar + 0.105;
-
-    // if (img_time_correct - last_timestamp_img < 0.02)
-    // {
-    //     ROS_WARN("Image need Jumps: %.6f", img_time_correct);
-    //     mtx_buffer.unlock();
-    //     sig_buffer.notify_all();
-    //     return;
-    // }
-
-    // cv::Mat img_cur = getImageFromMsg(msg);
-    // img_buffer.push_back(img_cur);
-    // img_time_buffer.push_back(img_time_correct);
-
-    // // ROS_INFO("Correct Image time: %.6f", img_time_correct);
-
-    // last_timestamp_img = img_time_correct;
-    // // cv::imshow("img", img);
-    // // cv::waitKey(1);
-    // // cout<<"last_timestamp_img:::"<<last_timestamp_img<<endl;
-    // mtx_buffer.unlock();
-    // sig_buffer.notify_all();
+    if (!img_en)
+        return;
+        sensor_msgs::CompressedImage::Ptr img_ptr(new sensor_msgs::CompressedImage(*img_msg));
+        sensor_msgs::Image::Ptr mask_ptr(new sensor_msgs::Image(*mask_msg));
+        // if ((abs(msg->header.stamp.toSec() - last_timestamp_img) > 0.2 && last_timestamp_img > 0) || sync_jump_flag)
+        // {
+        //   ROS_WARN("img jumps %.3f\n", msg->header.stamp.toSec() - last_timestamp_img);
+        //   sync_jump_flag = true;
+        //   msg->header.stamp = ros::Time().fromSec(last_timestamp_img + 0.1);
+        // }
+    
+        // Hiliti2022 40Hz
+        if (hilti_en)
+        {
+            static int frame_counter = 0;
+            if (++frame_counter % 4 != 0)
+                return;
+        }
+        // double msg_header_time =  msg->header.stamp.toSec();
+        double msg_header_time = img_ptr->header.stamp.toSec() + img_time_offset;
+        if (abs(msg_header_time - last_timestamp_img) < 0.001)
+            return;
+        ROS_INFO("Get image, its header time: %.6f", msg_header_time);
+        if (last_timestamp_lidar < 0)
+            return;
+    
+        if (msg_header_time < last_timestamp_img)
+        {
+            ROS_ERROR("image loop back. \n");
+            return;
+        }
+    
+        mtx_buffer.lock();
+    
+        double img_time_correct = msg_header_time; // last_timestamp_lidar + 0.105;
+    
+        if (img_time_correct - last_timestamp_img < 0.02)
+        {
+            ROS_WARN("Image need Jumps: %.6f", img_time_correct);
+            mtx_buffer.unlock();
+            sig_buffer.notify_all();
+            return;
+        }
+    
+        cv::Mat img_cur = getImageFromCompressedMsg(img_ptr);
+        cv::Mat mask_cur = getImageFromMsg(mask_ptr);
+        img_buffer.push_back(img_cur);
+        mask_buffer.push_back(mask_cur);
+        img_time_buffer.push_back(img_time_correct);
+    
+        // ROS_INFO("Correct Image time: %.6f", img_time_correct);
+    
+        last_timestamp_img = img_time_correct;
+        // cv::imshow("img", img);
+        // cv::waitKey(1);
+        // cout<<"last_timestamp_img:::"<<last_timestamp_img<<endl;
+        mtx_buffer.unlock();
+        sig_buffer.notify_all();
+    
 }
 
 
@@ -1218,6 +1222,10 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
             if (img_capture_time < meas.last_lio_update_time + 0.00001)
             {
                 img_buffer.pop_front();
+                if(dynamic_slam && (img_buffer.size() == mask_buffer.size()))
+                {
+                    mask_buffer.pop_front();
+                }
                 img_time_buffer.pop_front();
                 ROS_ERROR("[ Data Cut ] Throw one image frame! \n");
                 return false;
@@ -1310,6 +1318,10 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
             m.vio_time = img_capture_time;
             m.lio_time = meas.last_lio_update_time;
             m.img = img_buffer.front();
+            if(dynamic_slam && (img_buffer.size() == mask_buffer.size()))
+            {
+                m.mask = mask_buffer.front();
+            }
             mtx_buffer.lock();
             // while ((!imu_buffer.empty() && (imu_time < img_capture_time)))
             // {
@@ -1320,7 +1332,12 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
             //   printf("[ Data Cut ] imu time: %lf \n",
             //   imu_buffer.front()->header.stamp.toSec());
             // }
+            if(dynamic_slam && (img_buffer.size() == mask_buffer.size()))
+            {
+                mask_buffer.pop_front();
+            }
             img_buffer.pop_front();
+            
             img_time_buffer.pop_front();
             mtx_buffer.unlock();
             sig_buffer.notify_all();
