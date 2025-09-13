@@ -98,7 +98,7 @@ source ~/catkin_ws/devel/setup.bash
 Download our collected rosbag files via OneDrive ([**FAST-LIVO2-Dataset**](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/zhengcr_connect_hku_hk/ErdFNQtjMxZOorYKDTtK4ugBkogXfq1OfDm90GECouuIQA?e=KngY9Z)). 
 
 ```
-roslaunch fast_livo mapping_avia.launch
+roslaunch fast_livo2 mapping_avia.launch
 rosbag play YOUR_DOWNLOADED.bag
 ```
 
