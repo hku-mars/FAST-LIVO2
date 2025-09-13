@@ -1,6 +1,13 @@
-# FAST-LIVO2
+# FAST-LIVO2 ROS2 HUMBLE
 
 ## FAST-LIVO2: Fast, Direct LiDAR-Inertial-Visual Odometry
+
+### :star: Acknowledgments
+
+This project extends the following open-source contributions:
+
+- **Original work**: [FAST-LIVO2](https://github.com/hku-mars/FAST-LIVO2) by Chunran Zheng (HKU MARS Lab).
+- **ROS2 Humble port**: [FAST-LIVO2/tree/humble](https://github.com/Robotic-Developer-Road/FAST-LIVO2/tree/humble) by Robotic-Developer-Road.
 
 ### 📢 News
 
@@ -41,14 +48,17 @@ We open-source our handheld device, including CAD files, synchronization scheme,
 ### 1.4 Our associate dataset: FAST-LIVO2-Dataset
 Our associate dataset [**FAST-LIVO2-Dataset**](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/zhengcr_connect_hku_hk/ErdFNQtjMxZOorYKDTtK4ugBkogXfq1OfDm90GECouuIQA?e=KngY9Z) used for evaluation is also available online.
 
+### MARS-LVIG dataset
+[**MARS-LVIG dataset**](https://mars.hku.hk/dataset.html)：A multi-sensor aerial robots SLAM dataset for LiDAR-visual-inertial-GNSS fusion.
+
 ### 1.5 Our LiDAR-camera calibration method
-The [**FAST-Calib**](https://github.com/hku-mars/FAST-Calib) toolkit is recommended. Its output extrinsic parameters can be directly filled into the YAML file. 
+The [**FAST-Calib**](https://github.com/hku-mars/FAST-Calib) toolkit is recommended. Its output extrinsic parameters can be directly filled into the YAML file.
 
 ## 2. Prerequisited
 
 ### 2.1 Ubuntu and ROS
 
-Ubuntu 18.04~20.04.  [ROS Installation](http://wiki.ros.org/ROS/Installation).
+Ubuntu 22.04.  [ROS Installation](http://wiki.ros.org/ROS/Installation).
 
 ### 2.2 PCL && Eigen && OpenCV
 
@@ -60,12 +70,11 @@ OpenCV>=4.2, Follow [Opencv Installation](http://opencv.org/).
 
 ### 2.3 Sophus
 
-Sophus Installation for the non-templated/double-only version.
-
+#### Binary installation
 ```bash
-git clone https://github.com/strasdat/Sophus.git
+cd ~
+git clone https://github.com/strasdat/Sophus.git -b 1.22.10
 cd Sophus
-git checkout a621ff
 mkdir build && cd build && cmake ..
 make
 sudo make install
@@ -73,35 +82,101 @@ sudo make install
 
 ### 2.4 Vikit
 
-Vikit contains camera models, some math and interpolation functions that we need. Vikit is a catkin project, therefore, download it into your catkin workspace source folder.
+Vikit provides essential camera models, math utilities, and interpolation functions. As an ament package for ROS2, download its source into your colcon workspace's src folder. Additionally, I've added OpenCV fisheye distortion correction to the equidistant camera model in vikit_common.
 
 ```bash
 # Different from the one used in fast-livo1
-cd catkin_ws/src
-git clone https://github.com/xuankuzcr/rpg_vikit.git 
+cd ~
+git clone https://github.com/Rhymer-Lcy/rpg_vikit_ros2_fisheye.git
+mkdir -p ~/fast/src/
+cp -r ./rpg_vikit_ros2_fisheye/{vikit_common,vikit_ros} ~/fast_ws/src/
 ```
+
+Thanks to the following repositories for the code reference:
+
+- [xuankuzcr/rpg_vikit](https://github.com/xuankuzcr/rpg_vikit)
+- [integralrobotics/rpg_vikit](https://github.com/integralrobotics/rpg_vikit)
+
+### 2.5 **livox_ros_driver2**
+
+Follow [livox_ros_driver2 Installation](https://github.com/Livox-SDK/livox_ros_driver2).
+
+```bash
+cd ~/fast_ws/src/
+git clone https://github.com/Livox-SDK/livox_ros_driver2.git ws_livox/src/livox_ros_driver2
+```
+
+why not use `livox_ros_driver`? Because it is not compatible with ROS2 directly. actually i am not think there s any difference between [livox ros driver](https://github.com/Livox-SDK/livox_ros_driver.git) and [livox ros driver2](https://github.com/Livox-SDK/livox_ros_driver2.git) 's `CustomMsg`, the latter 's ros2 version is sufficient.
 
 ## 3. Build
 
-Clone the repository and catkin_make:
+Clone the repository and colcon build:
 
 ```
-cd ~/catkin_ws/src
-git clone https://github.com/hku-mars/FAST-LIVO2
-cd ../
-catkin_make
-source ~/catkin_ws/devel/setup.bash
+git clone https://github.com/Rhymer-Lcy/FAST-LIVO2-ROS2-MID360-Fisheye.git
+cd livox_ros_driver2
+./build.sh humble
+source ~/fast_ws/install/setup.bash
 ```
 
 ## 4. Run our examples
 
 Download our collected rosbag files via OneDrive ([**FAST-LIVO2-Dataset**](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/zhengcr_connect_hku_hk/ErdFNQtjMxZOorYKDTtK4ugBkogXfq1OfDm90GECouuIQA?e=KngY9Z)). 
 
+### convert rosbag
+
+convert ROS1 rosbag to ROS2 rosbag
+```bash
+pip install rosbags
+rosbags-convert --src Retail_Street.bag --dst Retail_Street
 ```
-roslaunch fast_livo mapping_avia.launch
-rosbag play YOUR_DOWNLOADED.bag
+- [gitlab rosbags](https://gitlab.com/ternaris/rosbags)
+- [pypi rosbags](https://pypi.org/project/rosbags/)
+
+### change the msg type on rosbag
+
+Such as dataset `Retail_Street.db3`, because we use `livox_ros2_driver2`'s `CustomMsg`, we need to change the msg type in the rosbag file. 
+1. use `rosbags-convert` to convert rosbag from ROS1 to ROS2.
+2. change the msg type of msg type in **metadata.yaml** as follows:
+
+**metadata.yaml**
+```diff
+rosbag2_bagfile_information:
+  compression_format: ''
+  compression_mode: ''
+  custom_data: {}
+  duration:
+    nanoseconds: 135470252209
+  files:
+  - duration:
+      nanoseconds: 135470252209
+    message_count: 30157
+    path: Retail_Street.db3
+    ..............
+    topic_metadata:
+      name: /livox/lidar
+      offered_qos_profiles: ''
+      serialization_format: cdr
+-     type: livox_ros_driver/msg/CustomMsg
++     type: livox_ros_driver2/msg/CustomMsg
+      type_description_hash: RIHS01_94041b4794f52c1d81def2989107fc898a62dacb7a39d5dbe80d4b55e538bf6d
+    ...............
+.....
 ```
 
+### Run the demo
+
+Do not forget to `source` your ROS2 workspace before running the following command.
+
+```bash
+ros2 launch fast_livo mapping_aviz.launch.py use_rviz:=True use_sim_time:=True
+ros2 bag play -p Retail_Street  # Use space bar to play/pause
+```
+
+```bash
+ros2 launch fast_livo mapping_aviz_metacamedu.launch.py use_rviz:=True use_sim_time:=True  # Configuration for MID360-Fisheye dataset
+ros2 bag play -p $BAG_PATH  # Use space bar to play/pause (self-collected MID360-Fisheye dataset)
+```
 
 ## 5. License
 

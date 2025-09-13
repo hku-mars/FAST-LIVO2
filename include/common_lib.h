@@ -16,13 +16,16 @@ which is included as part of this source code package.
 #include <utils/so3_math.h>
 #include <utils/types.h>
 #include <utils/color.h>
+#include <utils/utils.h>
 #include <opencv2/opencv.hpp>
-#include <sensor_msgs/Imu.h>
-#include <sophus/se3.h>
-#include <tf/transform_broadcaster.h>
+#include <sensor_msgs/msg/imu.hpp>
+#include <sophus/se3.hpp>
+#include <tf2_ros/transform_broadcaster.h>
+#include <tf2/LinearMath/Transform.hpp>
+#include <tf2/LinearMath/Quaternion.hpp>
 
 using namespace std;
-using namespace Eigen;
+// using namespace Eigen;   // avoid cmake error: reference to ‘Matrix’ is ambiguous
 using namespace Sophus;
 
 #define print_line std::cout << __FILE__ << ", " << __LINE__ << std::endl;
@@ -43,7 +46,7 @@ enum LID_TYPE
   L515 = 4,
   XT32 = 5,
   PANDAR128 = 6,
-  ROBOSENSE = 7
+  MID360 = 7
 };
 enum SLAM_MODE
 {
@@ -63,7 +66,7 @@ struct MeasureGroup
 {
   double vio_time;
   double lio_time;
-  deque<sensor_msgs::Imu::ConstPtr> imu;
+  deque<sensor_msgs::msg::Imu::ConstSharedPtr> imu;
   cv::Mat img;
   MeasureGroup()
   {
