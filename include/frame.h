@@ -34,14 +34,16 @@ public:
   SE3 T_f_w_;                //!< Transform (f)rame from (w)orld.
   SE3 T_f_w_prior_;          //!< Transform (f)rame from (w)orld provided by the IMU prior.
   cv::Mat img_;              //!< Image of the frame.
+  cv::Mat mask_;
   Features fts_;             //!< List of features in the image.
 
   Frame(vk::AbstractCamera *cam, const cv::Mat &img);
+  Frame(vk::AbstractCamera *cam, const cv::Mat &img, const cv::Mat &mask);
   ~Frame();
 
   /// Initialize new frame and create image pyramid.
   void initFrame(const cv::Mat &img);
-
+  void initFrame(const cv::Mat &img, const cv::Mat &mask);
   /// Return number of point observations.
   inline size_t nObs() const { return fts_.size(); }
 

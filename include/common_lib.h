@@ -43,7 +43,8 @@ enum LID_TYPE
   L515 = 4,
   XT32 = 5,
   PANDAR128 = 6,
-  ROBOSENSE = 7
+  ROBOSENSE = 7,
+  URBANLOCO = 8
 };
 enum SLAM_MODE
 {
@@ -65,6 +66,7 @@ struct MeasureGroup
   double lio_time;
   deque<sensor_msgs::Imu::ConstPtr> imu;
   cv::Mat img;
+  cv::Mat mask;
   MeasureGroup()
   {
     vio_time = 0.0;

@@ -20,6 +20,12 @@ which is included as part of this source code package.
 #include <image_transport/image_transport.h>
 #include <nav_msgs/Path.h>
 #include <vikit/camera_loader.h>
+#include <sensor_msgs/CompressedImage.h>
+#include <message_filters/subscriber.h>
+#include <message_filters/synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
+typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> ImageSyncPolicy;
+typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::CompressedImage, sensor_msgs::Image> CompressedSyncPolicy;
 
 class LIVMapper
 {
@@ -49,6 +55,9 @@ public:
   void livox_pcl_cbk(const livox_ros_driver::CustomMsg::ConstPtr &msg_in);
   void imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in);
   void img_cbk(const sensor_msgs::ImageConstPtr &msg_in);
+  void img_mask_cbk(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::ImageConstPtr &mask_msg);
+  void compressed_mask_cbk(const sensor_msgs::CompressedImageConstPtr &img_msg, const sensor_msgs::ImageConstPtr &mask_msg);
+  void compressed_cbk(const sensor_msgs::CompressedImageConstPtr &msg_in);
   void publish_img_rgb(const image_transport::Publisher &pubImage, VIOManagerPtr vio_manager);
   void publish_frame_world(const ros::Publisher &pubLaserCloudFullRes, VIOManagerPtr vio_manager);
   void publish_visual_sub_map(const ros::Publisher &pubSubVisualMap);
@@ -60,8 +69,16 @@ public:
   template <typename T> void set_posestamp(T &out);
   template <typename T> void pointBodyToWorld(const Eigen::Matrix<T, 3, 1> &pi, Eigen::Matrix<T, 3, 1> &po);
   template <typename T> Eigen::Matrix<T, 3, 1> pointBodyToWorld(const Eigen::Matrix<T, 3, 1> &pi);
-  cv::Mat getImageFromMsg(const sensor_msgs::ImageConstPtr &img_msg);
 
+
+  // message_filters::Subscriber<sensor_msgs::Image> img_sub;
+  // message_filters::Subscriber<sensor_msgs::CompressedImage> compressed_sub;
+  // message_filters::Subscriber<sensor_msgs::Image> mask_sub;
+  bool dynamic_slam;
+  std::unique_ptr<message_filters::Synchronizer<ImageSyncPolicy>> img_sync;
+  std::unique_ptr<message_filters::Synchronizer<CompressedSyncPolicy>> com_sync;
+  cv::Mat getImageFromMsg(const sensor_msgs::ImageConstPtr &img_msg);
+  cv::Mat getImageFromCompressedMsg(const sensor_msgs::CompressedImageConstPtr &img_msg);
   std::mutex mtx_buffer, mtx_buffer_imu_prop;
   std::condition_variable sig_buffer;
 
@@ -69,9 +86,10 @@ public:
   std::unordered_map<VOXEL_LOCATION, VoxelOctoTree *> voxel_map;
   
   string root_dir;
-  string lid_topic, imu_topic, seq_name, img_topic;
+  string lid_topic, imu_topic, seq_name, img_topic, mask_topic;
   V3D extT;
   M3D extR;
+  bool is_compressed_image;
 
   int feats_down_size = 0, max_iterations = 0;
 
@@ -122,6 +140,7 @@ public:
   deque<double> lid_header_time_buffer;
   deque<sensor_msgs::Imu::ConstPtr> imu_buffer;
   deque<cv::Mat> img_buffer;
+  deque<cv::Mat> mask_buffer;
   deque<double> img_time_buffer;
   vector<pointWithVar> _pv_list;
   vector<double> extrinT;
