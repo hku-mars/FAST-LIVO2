@@ -90,6 +90,7 @@ void LIVMapper::readParameters(ros::NodeHandle &nh)
   nh.param<bool>("preprocess/hilti_en", hilti_en, false);
   nh.param<int>("preprocess/lidar_type", p_pre->lidar_type, AVIA);
   nh.param<int>("preprocess/scan_line", p_pre->N_SCANS, 6);
+  nh.param<int>("preprocess/scan_rate", p_pre->SCAN_RATE, 10);
   nh.param<int>("preprocess/point_filter_num", p_pre->point_filter_num, 3);
   nh.param<bool>("preprocess/feature_extract_enabled", p_pre->feature_enabled, false);
 
