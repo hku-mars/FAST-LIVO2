@@ -51,7 +51,7 @@ void LIVMapper::readParameters(ros::NodeHandle &nh)
 {
     nh.param<string>("common/lid_topic", lid_topic, "/livox/lidar");
     nh.param<string>("common/imu_topic", imu_topic, "/livox/imu");
-    nh.param<string>("common/mask_topic", imu_topic, "");
+    nh.param<string>("common/mask_topic", mask_topic, "/camera/color/segmentation_image");
     nh.param<bool>("common/ros_driver_bug_fix", ros_driver_fix_en, false);
     nh.param<int>("common/img_en", img_en, 1);
     nh.param<int>("common/lidar_en", lidar_en, 1);
@@ -203,8 +203,11 @@ void LIVMapper::initializeSubscribersAndPublishers(ros::NodeHandle &nh, image_tr
 
     if (dynamic_slam)
     {
+        std::cout << "[LIVMapper::initializeSubscribersAndPublishers] using dynamic slam. " << std::endl; 
         if(is_compressed_image)
         {
+            std::cout << "[LIVMapper::initializeSubscribersAndPublishers] compressed image: " << img_topic << std::endl; 
+            std::cout << "[LIVMapper::initializeSubscribersAndPublishers] mask topic: " << mask_topic << std::endl; 
             message_filters::Subscriber<sensor_msgs::CompressedImage> img_sub(nh, img_topic, 100);
             message_filters::Subscriber<sensor_msgs::Image> mask_sub(nh, mask_topic, 100);
             com_sync = std::make_unique<message_filters::Synchronizer<CompressedSyncPolicy>>(
@@ -214,6 +217,7 @@ void LIVMapper::initializeSubscribersAndPublishers(ros::NodeHandle &nh, image_tr
         }
         else
         {
+            std::cout << "[LIVMapper::initializeSubscribersAndPublishers] using image msg. " << std::endl; 
             message_filters::Subscriber<sensor_msgs::Image> img_sub(nh, img_topic, 100);
             message_filters::Subscriber<sensor_msgs::Image> mask_sub(nh, mask_topic, 100);
             img_sync = std::make_unique<message_filters::Synchronizer<ImageSyncPolicy>>(
@@ -1069,6 +1073,7 @@ void LIVMapper::img_mask_cbk(const sensor_msgs::ImageConstPtr &img_msg, const se
 
 void LIVMapper::compressed_mask_cbk(const sensor_msgs::CompressedImageConstPtr &img_msg, const sensor_msgs::ImageConstPtr &mask_msg)
 {
+    std::cout << "[Compressed mask callback] start callback. " <<  std::endl; 
     if (!img_en)
         return;
         sensor_msgs::CompressedImage::Ptr img_ptr(new sensor_msgs::CompressedImage(*img_msg));
