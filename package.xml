@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<package>
+<package format="3">
   <name>fast_livo</name>
   <version>0.0.0</version>
 
@@ -16,38 +16,39 @@
 
   <author email="zhangji@cmu.edu">Ji Zhang</author>
   
-  <buildtool_depend>catkin</buildtool_depend>
-  <build_depend>geometry_msgs</build_depend>
-  <build_depend>nav_msgs</build_depend>
-  <build_depend>roscpp</build_depend>
-  <build_depend>rospy</build_depend>
-  <build_depend>std_msgs</build_depend>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <build_depend>rclcpp</build_depend>
+  <build_depend>rclpy</build_depend>
   <build_depend>sensor_msgs</build_depend>
-  <build_depend>tf</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>visualization_msgs</build_depend>
+  <build_depend>nav_msgs</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>tf2_ros</build_depend>
   <build_depend>pcl_ros</build_depend>
-  <build_depend>message_generation</build_depend>
+  <build_depend>pcl_conversions</build_depend>
+  <build_depend>livox_ros_driver2</build_depend>
   <build_depend>vikit_common</build_depend>
   <build_depend>vikit_ros</build_depend>
   <build_depend>cv_bridge</build_depend>
+  <build_depend>image_transport</build_depend>
+  <build_depend>libopencv-dev</build_depend>
 
-  <run_depend>geometry_msgs</run_depend>
-  <run_depend>nav_msgs</run_depend>
-  <run_depend>sensor_msgs</run_depend>
-  <run_depend>roscpp</run_depend>
-  <run_depend>rospy</run_depend>
-  <run_depend>std_msgs</run_depend>
-  <run_depend>tf</run_depend>
-  <run_depend>pcl_ros</run_depend>
-  <run_depend>message_runtime</run_depend>
-  <run_depend>vikit_common</run_depend>
-  <run_depend>vikit_ros</run_depend>
-  <run_depend>cv_bridge</run_depend>
-  <build_depend>image_transport</build_depend> 
-  <run_depend>image_transport</run_depend> 
+  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>image_transport</exec_depend>
+  <exec_depend>libopencv-dev</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
 
-  <test_depend>rostest</test_depend>
-  <test_depend>rosbag</test_depend>
+  <member_of_group>rosidl_interface_packages</member_of_group>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
 
   <export>
+    <build_type>ament_cmake</build_type>
+    <!-- https://github.com/ros-perception/image_transport_tutorials/blob/humble/package.xml -->
+    <!-- <image_transport plugin="${prefix}/resized_plugins.xml"/> -->
   </export>
 </package>
