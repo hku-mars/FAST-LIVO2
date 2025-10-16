@@ -130,7 +130,7 @@ public:
   vector<pointWithVar> append_voxel_points;
   FramePtr new_frame_;
   cv::Mat img_cp, img_rgb, img_test;
-
+  cv::Mat mask_cp, mask_p;
   enum CellType
   {
     TYPE_MAP = 1,
@@ -143,6 +143,8 @@ public:
   void updateStateInverse(cv::Mat img, int level);
   void updateState(cv::Mat img, int level);
   void processFrame(cv::Mat &img, vector<pointWithVar> &pg, const unordered_map<VOXEL_LOCATION, VoxelOctoTree *> &feat_map, double img_time);
+  void processFrame(cv::Mat &img, cv::Mat &mask, vector<pointWithVar> &pg, const unordered_map<VOXEL_LOCATION, VoxelOctoTree *> &feat_map, double img_time);
+  void retrieveFromVisualSparseMap(cv::Mat img, cv::Mat mask, vector<pointWithVar> &pg, const unordered_map<VOXEL_LOCATION, VoxelOctoTree *> &plane_map);
   void retrieveFromVisualSparseMap(cv::Mat img, vector<pointWithVar> &pg, const unordered_map<VOXEL_LOCATION, VoxelOctoTree *> &plane_map);
   void generateVisualMapPoints(cv::Mat img, vector<pointWithVar> &pg);
   void setImuToLidarExtrinsic(const V3D &transl, const M3D &rot);

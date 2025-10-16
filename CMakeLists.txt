@@ -91,6 +91,7 @@ find_package(catkin REQUIRED COMPONENTS
   vikit_ros
   cv_bridge
   image_transport
+  message_filters
 )
 
 find_package(Eigen3 REQUIRED)
@@ -103,7 +104,7 @@ set(Sophus_LIBRARIES libSophus.so)
 
 # Define the catkin package
 catkin_package(
-  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs message_runtime cv_bridge vikit_common vikit_ros image_transport
+  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs message_runtime cv_bridge vikit_common vikit_ros image_transport message_filters
   DEPENDS EIGEN3 PCL OpenCV Sophus
 )
 
