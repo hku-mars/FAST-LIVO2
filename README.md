@@ -10,11 +10,13 @@
 
 ### 📬 Contact
 
-If you have any questions, please feel free to contact: Chunran Zheng [zhengcr@connect.hku.hk](mailto:zhengcr@connect.hku.hk).
+For further inquiries or assistance, please contact [zhengcr@connect.hku.hk](mailto:zhengcr@connect.hku.hk).
 
 ## 1. Introduction
 
 FAST-LIVO2 is an efficient and accurate LiDAR-inertial-visual fusion localization and mapping system, demonstrating significant potential for real-time 3D reconstruction and onboard robotic localization in severely degraded environments.
+
+**Developer**: [Chunran Zheng 郑纯然](https://github.com/xuankuzcr)
 
 <div align="center">
     <img src="pics/Framework.png" width = 100% >
@@ -28,7 +30,11 @@ Our accompanying video is now available on [**Bilibili**](https://www.bilibili.c
 
 [FAST-LIVO2: Fast, Direct LiDAR-Inertial-Visual Odometry](https://arxiv.org/pdf/2408.14035)  
 
+[FAST-LIVO2 on Resource-Constrained Platforms](https://arxiv.org/pdf/2501.13876)  
+
 [FAST-LIVO: Fast and Tightly-coupled Sparse-Direct LiDAR-Inertial-Visual Odometry](https://arxiv.org/pdf/2203.00893)
+
+[FAST-Calib: LiDAR-Camera Extrinsic Calibration in One Second](https://www.arxiv.org/pdf/2507.17210)
 
 ### 1.3 Our hard-synchronized equipment
 

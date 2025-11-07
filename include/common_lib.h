@@ -42,7 +42,8 @@ enum LID_TYPE
   OUST64 = 3,
   L515 = 4,
   XT32 = 5,
-  PANDAR128 = 6
+  PANDAR128 = 6,
+  ROBOSENSE = 7
 };
 enum SLAM_MODE
 {

@@ -18,9 +18,8 @@ which is included as part of this source code package.
 #include <condition_variable>
 #include <nav_msgs/Odometry.h>
 #include <utils/so3_math.h>
-
-const bool time_list(PointType &x,
-                     PointType &y); //{return (x.curvature < y.curvature);};
+#include <fstream>
+const bool time_list(PointType &x, PointType &y) { return (x.curvature < y.curvature); }
 
 /// *************IMU Process and undistortion
 class ImuProcess
