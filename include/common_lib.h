@@ -241,4 +241,33 @@ auto set_pose6d(const double t, const Matrix<T, 3, 1> &a, const Matrix<T, 3, 1> 
   return move(rot_kp);
 }
 
+// 从 /proc/self/stat 读取当前进程内存占用 (KB)
+inline void getCurrentMemoryUsage(double &vm_kb, double &rss_kb) {
+  vm_kb = 0.0;
+  rss_kb = 0.0;
+  std::ifstream in("/proc/self/stat", std::ios_base::in);
+  if (!in.is_open()) return;
+  std::string skip;
+  for (int i = 0; i < 22; i++) in >> skip;
+  unsigned long vsize = 0;
+  long rss = 0;
+  if (in >> vsize >> rss) {
+    vm_kb = vsize / 1024.0;
+    rss_kb = rss * (sysconf(_SC_PAGE_SIZE) / 1024);
+  }
+}
+
+// 读取当前内存并与之前快照比较，直接输出 delta
+// 信息（调用处在目标函数前后各调用一次即可）
+inline void printMemoryDelta(const char *label, double vm_kb_before,
+                      double rss_kb_before) {
+  double vm_kb, rss_kb;
+  getCurrentMemoryUsage(vm_kb, rss_kb);
+  printf(
+      "\033[1;33m[ VIO RAM ] %s: RSS %.3f MB (delta %+.3f MB), VM %.1f MB "
+      "(delta %+.3f MB)\033[0m\n",
+      label, rss_kb / 1024.0, (rss_kb - rss_kb_before) / 1024.0, vm_kb / 1024.0,
+      (vm_kb - vm_kb_before)/1024);
+}
+
 #endif

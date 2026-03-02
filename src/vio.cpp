@@ -53,6 +53,8 @@ void VIOManager::initializeVIO()
   width = cam->width();
   height = cam->height();
 
+  depth_data.resize(height, width);
+
   printf("width: %d, height: %d, scale: %f\n", width, height, image_resize_factor);
   Rci = Rcl * Rli;
   Pci = Rcl * Pli + Pcl;
@@ -368,8 +370,9 @@ void VIOManager::retrieveFromVisualSparseMap(cv::Mat img, vector<pointWithVar> &
 
   if (!normal_en) warp_map.clear();
 
-  cv::Mat depth_img = cv::Mat::zeros(height, width, CV_32FC1);
-  float *it = (float *)depth_img.data;
+  // cv::Mat depth_img = cv::Mat::zeros(height, width, CV_32FC1);
+  // float *it = (float *)depth_img.data;
+  depth_data.setZero();
 
   // float it[height * width] = {0.0};
 
@@ -421,7 +424,9 @@ void VIOManager::retrieveFromVisualSparseMap(cv::Mat img, vector<pointWithVar> &
         float depth = pt_c[2];
         int col = int(px[0]);
         int row = int(px[1]);
-        it[width * row + col] = depth;
+        // it[width * row + col] = depth;
+
+        depth_data(width*row+col) = depth;
       }
     }
     // t_depth += omp_get_wtime()-t2;
@@ -623,8 +628,9 @@ void VIOManager::retrieveFromVisualSparseMap(cv::Mat img, vector<pointWithVar> &
         {
           if (u == 0 && v == 0) continue;
 
-          float depth = it[width * (v + int(pc[1])) + u + int(pc[0])];
-
+          // float depth = it[width * (v + int(pc[1])) + u + int(pc[0])];
+          float depth = depth_data(width * (v + int(pc[1])) + u + int(pc[0]));
+        
           if (depth == 0.) continue;
 
           double delta_dist = abs(pt_cam[2] - depth);
@@ -1801,11 +1807,15 @@ void VIOManager::processFrame(cv::Mat &img, vector<pointWithVar> &pg, const unor
   
   resetGrid();
 
+  double vm_kb, rss_kb;
+  getCurrentMemoryUsage(vm_kb, rss_kb);
   double t1 = omp_get_wtime();
 
   retrieveFromVisualSparseMap(img, pg, feat_map);
 
   double t2 = omp_get_wtime();
+  printMemoryDelta("retrieveFromVisualSparseMap", vm_kb, rss_kb);
+
 
   computeJacobianAndUpdateEKF(img);
 

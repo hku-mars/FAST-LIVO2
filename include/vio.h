@@ -130,6 +130,7 @@ public:
   vector<pointWithVar> append_voxel_points;
   FramePtr new_frame_;
   cv::Mat img_cp, img_rgb, img_test;
+  Eigen::MatrixXf depth_data;
 
   enum CellType
   {
