@@ -359,7 +359,14 @@ void VoxelMapManager::StateEstimation(StatesGroup &state_propagat)
     cross_mat_list_.push_back(point_crossmat);
   }
 
-  vector<pointWithVar>().swap(pv_list_);
+  // Optimized pv_list management to avoid repeated memory allocation
+  // Reuse pv_list_ directly without clearing, just resize as needed
+  // This preserves capacity and avoids reallocation
+  
+  if (static_cast<int>(pv_list_.capacity()) < feats_down_size_) {
+    // Only reserve if capacity is insufficient (exponential growth)
+    pv_list_.reserve(std::max(static_cast<int>(pv_list_.capacity()) * 2, feats_down_size_));
+  }
   pv_list_.resize(feats_down_size_);
 
   int rematch_num = 0;
