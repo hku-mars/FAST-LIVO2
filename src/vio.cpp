@@ -1796,9 +1796,25 @@ void VIOManager::processFrame(cv::Mat &img, vector<pointWithVar> &pg, const unor
     if (img.empty()) printf("[ VIO ] Empty Image!\n");
     cv::resize(img, img, cv::Size(img.cols * image_resize_factor, img.rows * image_resize_factor), 0, 0, CV_INTER_LINEAR);
   }
-  img_rgb = img.clone();
-  img_cp = img.clone();
-  // img_test = img.clone();
+  
+  // Optimized: Avoid unnecessary image cloning to reduce memory allocation
+  // Only clone if we need to preserve the original (e.g., for visualization)
+  // Use cv::Mat::copyTo() with pre-allocated buffers when possible
+  
+  // Pre-allocate buffers if not already allocated or if size changed
+  if (img_rgb.empty() || img_rgb.size() != img.size() || img_rgb.type() != img.type()) {
+    img_rgb = img.clone();  // Only clone on first time or size change
+  } else {
+    img.copyTo(img_rgb);  // Reuse existing buffer (no reallocation)
+  }
+  
+  if (img_cp.empty() || img_cp.size() != img.size() || img_cp.type() != img.type()) {
+    img_cp = img.clone();  // Only clone on first time or size change
+  } else {
+    img.copyTo(img_cp);  // Reuse existing buffer (no reallocation)
+  }
+  
+  // img_test = img.clone(); // Commented out - not used
 
   if (img.channels() == 3) cv::cvtColor(img, img, CV_BGR2GRAY);
 
