@@ -379,15 +379,19 @@ void VoxelMapManager::StateEstimation(StatesGroup &state_propagat)
   for (int iterCount = 0; iterCount < config_setting_.max_iterations_; iterCount++)
   {
     double total_residual = 0.0;
-    pcl::PointCloud<pcl::PointXYZI>::Ptr world_lidar(new pcl::PointCloud<pcl::PointXYZI>);
-    TransformLidar(state_.rot_end, state_.pos_end, feats_down_body_, world_lidar);
+    
+    // Optimized: Reuse pre-allocated world_lidar buffer instead of allocating new one each iteration
+    // Clear the buffer but keep capacity
+    world_lidar_buffer_->clear();
+    
+    TransformLidar(state_.rot_end, state_.pos_end, feats_down_body_, world_lidar_buffer_);
     M3D rot_var = state_.cov.block<3, 3>(0, 0);
     M3D t_var = state_.cov.block<3, 3>(3, 3);
     for (size_t i = 0; i < feats_down_body_->size(); i++)
     {
       pointWithVar &pv = pv_list_[i];
       pv.point_b << feats_down_body_->points[i].x, feats_down_body_->points[i].y, feats_down_body_->points[i].z;
-      pv.point_w << world_lidar->points[i].x, world_lidar->points[i].y, world_lidar->points[i].z;
+      pv.point_w << world_lidar_buffer_->points[i].x, world_lidar_buffer_->points[i].y, world_lidar_buffer_->points[i].z;
 
       M3D cov = body_cov_list_[i];
       M3D point_crossmat = cross_mat_list_[i];
@@ -674,21 +678,38 @@ void VoxelMapManager::BuildResidualListOMP(std::vector<pointWithVar> &pv_list, s
   double sigma_num = config_setting_.sigma_num_;
   std::mutex mylock;
   ptpl_list.clear();
-  std::vector<PointToPlane> all_ptpl_list(pv_list.size());
-  std::vector<bool> useful_ptpl(pv_list.size());
-  std::vector<size_t> index(pv_list.size());
-  for (size_t i = 0; i < index.size(); ++i)
-  {
-    index[i] = i;
-    useful_ptpl[i] = false;
+  
+  // Optimized: Use pre-allocated buffers instead of dynamic allocation
+  // Resize buffers if needed (exponential growth to reduce reallocation)
+  size_t pv_size = pv_list.size();
+  
+  if (all_ptpl_list_buffer_.size() < pv_size) {
+    all_ptpl_list_buffer_.resize(std::max(all_ptpl_list_buffer_.capacity() * 2, pv_size));
   }
+  if (useful_ptpl_buffer_.size() < pv_size) {
+    useful_ptpl_buffer_.resize(std::max(useful_ptpl_buffer_.capacity() * 2, pv_size));
+  }
+  if (index_buffer_.size() < pv_size) {
+    index_buffer_.resize(std::max(index_buffer_.capacity() * 2, pv_size));
+  }
+  
+  // Initialize buffers for this iteration
+  for (size_t i = 0; i < pv_size; ++i) {
+    index_buffer_[i] = i;
+    useful_ptpl_buffer_[i] = false;
+  }
+  
+  // Use raw pointers for OpenMP parallel region (avoid vector bounds checking overhead)
+  PointToPlane* all_ptpl_ptr = all_ptpl_list_buffer_.data();
+  pointWithVar* pv_ptr = pv_list.data();
+
   #ifdef MP_EN
     omp_set_num_threads(MP_PROC_NUM);
     #pragma omp parallel for
   #endif
-  for (int i = 0; i < index.size(); i++)
+  for (int i = 0; i < static_cast<int>(pv_size); i++)
   {
-    pointWithVar &pv = pv_list[i];
+    pointWithVar &pv = pv_ptr[i];
     float loc_xyz[3];
     for (int j = 0; j < 3; j++)
     {
@@ -719,21 +740,24 @@ void VoxelMapManager::BuildResidualListOMP(std::vector<pointWithVar> &pv_list, s
       if (is_sucess)
       {
         mylock.lock();
-        useful_ptpl[i] = true;
-        all_ptpl_list[i] = single_ptpl;
+        useful_ptpl_buffer_[i] = true;
+        all_ptpl_ptr[i] = single_ptpl;
         mylock.unlock();
       }
       else
       {
         mylock.lock();
-        useful_ptpl[i] = false;
+        useful_ptpl_buffer_[i] = false;
         mylock.unlock();
       }
     }
   }
-  for (size_t i = 0; i < useful_ptpl.size(); i++)
+  
+  // Collect valid ptpl
+  ptpl_list.reserve(pv_size);  // Reserve to avoid reallocation
+  for (size_t i = 0; i < pv_size; i++)
   {
-    if (useful_ptpl[i]) { ptpl_list.push_back(all_ptpl_list[i]); }
+    if (useful_ptpl_buffer_[i]) { ptpl_list.push_back(all_ptpl_ptr[i]); }
   }
 }
 
