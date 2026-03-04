@@ -524,19 +524,39 @@ void VoxelMapManager::StateEstimation(StatesGroup &state_propagat)
 void VoxelMapManager::TransformLidar(const Eigen::Matrix3d rot, const Eigen::Vector3d t, const PointCloudXYZI::Ptr &input_cloud,
                                      pcl::PointCloud<pcl::PointXYZI>::Ptr &trans_cloud)
 {
-  pcl::PointCloud<pcl::PointXYZI>().swap(*trans_cloud);
-  trans_cloud->reserve(input_cloud->size());
-  for (size_t i = 0; i < input_cloud->size(); i++)
+  // Optimized: Clear and reuse pre-allocated buffer instead of swapping and reallocating
+  // The buffer capacity is preserved, avoiding reallocation in subsequent iterations
+  
+  // Get input size
+  size_t input_size = input_cloud->size();
+  
+  // Reserve if needed (should only happen on first call or if input grows)
+  if (trans_cloud->points.capacity() < input_size) {
+    trans_cloud->reserve(input_size);
+  }
+  
+  // Clear but keep capacity
+  trans_cloud->clear();
+  trans_cloud->resize(input_size);  // Pre-size to avoid push_back reallocation
+  
+  // Pre-compute transformation matrices
+  const Eigen::Matrix3d R_ext = rot * extR_;
+  const Eigen::Vector3d t_ext = rot * extT_ + t;
+  
+  // Direct access to underlying arrays for better performance
+  const auto& input_points = input_cloud->points;
+  auto& output_points = trans_cloud->points;
+  
+  // Transform points (direct array access, no push_back)
+  for (size_t i = 0; i < input_size; i++)
   {
-    pcl::PointXYZINormal p_c = input_cloud->points[i];
+    const auto& p_c = input_points[i];
     Eigen::Vector3d p(p_c.x, p_c.y, p_c.z);
-    p = (rot * (extR_ * p + extT_) + t);
-    pcl::PointXYZI pi;
-    pi.x = p(0);
-    pi.y = p(1);
-    pi.z = p(2);
-    pi.intensity = p_c.intensity;
-    trans_cloud->points.push_back(pi);
+    p = R_ext * p + t_ext;
+    output_points[i].x = p(0);
+    output_points[i].y = p(1);
+    output_points[i].z = p(2);
+    output_points[i].intensity = p_c.intensity;
   }
 }
 
