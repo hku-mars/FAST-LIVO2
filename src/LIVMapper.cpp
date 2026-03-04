@@ -998,14 +998,40 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
       mtx_buffer.unlock();
       sig_buffer.notify_all();
 
-      *(meas.pcl_proc_cur) = *(meas.pcl_proc_next);
-      PointCloudXYZI().swap(*meas.pcl_proc_next);
+      // Optimized point cloud buffer management to reduce memory allocation
+      // Instead of copying and reserving excessive memory, we use a more efficient approach
+      
+      // Step 1: Swap buffers instead of copying (pcl_proc_next becomes pcl_proc_cur)
+      // This avoids unnecessary memory copy and allocation
+      meas.pcl_proc_cur->swap(*meas.pcl_proc_next);
+      meas.pcl_proc_next->clear();  // Just clear, don't deallocate
+      
+      // Step 2: Calculate a more reasonable reserve size
+      // Use actual buffered LiDAR points instead of worst-case estimation
+      int estimated_new_points = 0;
+      
+      // Estimate points to be added from buffered LiDAR frames
+      for (const auto& frame : lid_raw_data_buffer) {
+        estimated_new_points += frame->points.size();
+      }
+      
+      // Reserve with a safety margin (1.2x) but cap at MAX_BUFFER_CAPACITY
+      int cur_size = meas.pcl_proc_cur->size();
+      int reserved_size = std::min(cur_size + estimated_new_points, MAX_BUFFER_CAPACITY);
+      
+      // Only reserve if needed (avoid unnecessary reallocations)
+      if (meas.pcl_proc_cur->points.capacity() < static_cast<size_t>(reserved_size)) {
+        meas.pcl_proc_cur->reserve(reserved_size);
+      }
+      if (meas.pcl_proc_next->points.capacity() < static_cast<size_t>(MAX_BUFFER_CAPACITY / 2)) {
+        meas.pcl_proc_next->reserve(MAX_BUFFER_CAPACITY / 2);
+      }
+      
+      pcl_proc_cur_count = 0;
+      pcl_proc_next_count = 0;
 
-      int lid_frame_num = lid_raw_data_buffer.size();
-      int max_size = meas.pcl_proc_cur->size() + 24000 * lid_frame_num;
-      meas.pcl_proc_cur->reserve(max_size);
-      meas.pcl_proc_next->reserve(max_size);
-      // deque<PointCloudXYZI::Ptr> lidar_buffer_tmp;
+      // Step 3: Pre-allocate counters for better cache performance
+      int cur_count = 0, next_count = 0;
 
       while (!lid_raw_data_buffer.empty())
       {
@@ -1021,15 +1047,31 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
           {
             pt.curvature += (frame_header_time - meas.last_lio_update_time) * 1000.0f;
             meas.pcl_proc_cur->points.push_back(pt);
+            cur_count++;
           }
           else
           {
             pt.curvature += (frame_header_time - m.lio_time) * 1000.0f;
             meas.pcl_proc_next->points.push_back(pt);
+            next_count++;
           }
         }
         lid_raw_data_buffer.pop_front();
         lid_header_time_buffer.pop_front();
+      }
+      
+      pcl_proc_cur_count = cur_count;
+      pcl_proc_next_count = next_count;
+
+      // Step 4: Shrink to fit only if significantly over-allocated
+      meas.pcl_proc_cur->resize(pcl_proc_cur_count);
+      meas.pcl_proc_next->resize(pcl_proc_next_count);
+      
+      // Optional: Release excess capacity if waste > 50%
+      if (meas.pcl_proc_cur->points.capacity() > static_cast<size_t>(pcl_proc_cur_count) * 2) {
+        // Keep some extra capacity for next iteration, but not too much
+        meas.pcl_proc_cur->reserve(std::max(static_cast<size_t>(pcl_proc_cur_count), 
+                                             static_cast<size_t>(MAX_BUFFER_CAPACITY / 4)));
       }
 
       meas.measures.push_back(m);

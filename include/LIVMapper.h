@@ -109,6 +109,11 @@ public:
   bool normal_en = true;
   bool exposure_estimate_en = false;
   double exposure_time_init = 0.0;
+  
+  // Pre-allocated point cloud buffer capacity constants to avoid repeated memory allocation
+  static constexpr int MAX_LIDAR_POINTS_PER_FRAME = 25000;  // Max points per LiDAR frame
+  static constexpr int MAX_BUFFER_CAPACITY = 100000;         // Max total capacity for pcl_proc buffers
+  
   bool inverse_composition_en = false;
   bool raycast_en = false;
   int lidar_en = 1;
@@ -183,5 +188,7 @@ public:
   double aver_time_icp = 0;
   double aver_time_map_inre = 0;
   bool colmap_output_en = false;
+
+  std::size_t pcl_proc_cur_count = 0, pcl_proc_next_count = 0;
 };
 #endif
