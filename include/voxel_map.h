@@ -216,16 +216,6 @@ public:
   std::vector<M3D> body_cov_list_;
   std::vector<pointWithVar> pv_list_;
   std::vector<PointToPlane> ptpl_list_;
-  
-  // Pre-allocated point cloud buffer for TransformLidar to avoid repeated allocation
-  static constexpr int MAX_LIDAR_CAPACITY = 25000;  // Maximum expected LiDAR points
-  pcl::PointCloud<pcl::PointXYZI>::Ptr world_lidar_buffer_;
-
-  // Pre-allocated buffers for BuildResidualListOMP to avoid repeated memory allocation
-  static constexpr int MAX_RESIDUAL_CAPACITY = 20000;  // Maximum expected feature points
-  std::vector<PointToPlane> all_ptpl_list_buffer_;
-  std::vector<bool> useful_ptpl_buffer_;
-  std::vector<size_t> index_buffer_;
 
   VoxelMapManager(VoxelMapConfig &config_setting, std::unordered_map<VOXEL_LOCATION, VoxelOctoTree *> &voxel_map)
       : config_setting_(config_setting), voxel_map_(voxel_map)
@@ -234,15 +224,6 @@ public:
     feats_undistort_.reset(new PointCloudXYZI());
     feats_down_body_.reset(new PointCloudXYZI());
     feats_down_world_.reset(new PointCloudXYZI());
-    
-    // Pre-allocate world_lidar buffer
-    world_lidar_buffer_.reset(new pcl::PointCloud<pcl::PointXYZI>);
-    world_lidar_buffer_->reserve(MAX_LIDAR_CAPACITY);
-    
-    // Pre-allocate buffers for BuildResidualListOMP
-    all_ptpl_list_buffer_.reserve(MAX_RESIDUAL_CAPACITY);
-    useful_ptpl_buffer_.reserve(MAX_RESIDUAL_CAPACITY);
-    index_buffer_.reserve(MAX_RESIDUAL_CAPACITY);
   };
 
   void StateEstimation(StatesGroup &state_propagat);
