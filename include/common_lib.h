@@ -259,15 +259,22 @@ inline void getCurrentMemoryUsage(double &vm_kb, double &rss_kb) {
 
 // 读取当前内存并与之前快照比较，直接输出 delta
 // 信息（调用处在目标函数前后各调用一次即可）
-inline void printMemoryDelta(const char *label, double vm_kb_before,
-                      double rss_kb_before) {
+inline void printMemoryDelta(const char *label, double& vm_kb_before,
+                      double& rss_kb_before,const bool& show_always = false) {
   double vm_kb, rss_kb;
   getCurrentMemoryUsage(vm_kb, rss_kb);
-  printf(
-      "\033[1;33m[ VIO RAM ] %s: RSS %.3f MB (delta %+.3f MB), VM %.1f MB "
-      "(delta %+.3f MB)\033[0m\n",
-      label, rss_kb / 1024.0, (rss_kb - rss_kb_before) / 1024.0, vm_kb / 1024.0,
-      (vm_kb - vm_kb_before)/1024);
+  double rss_delta = (rss_kb - rss_kb_before) / 1024.0;
+  double vm_delta = (vm_kb - vm_kb_before) / 1024.0;
+  vm_kb_before = vm_kb;
+  rss_kb_before = rss_kb;
+
+  // Only print if there's a significant change
+  if (rss_delta > 0.01 || vm_delta > 0.01 || show_always) {
+    printf(
+        "\033[1;33m[ VIO RAM ] %s: RSS %.3f MB (delta %+.3f MB), VM %.1f MB "
+        "(delta %+.3f MB)\033[0m\n",
+        label, rss_kb / 1024.0, rss_delta, vm_kb / 1024.0, vm_delta);
+  }
 }
 
 #endif
