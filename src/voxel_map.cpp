@@ -459,7 +459,7 @@ void VoxelMapManager::StateEstimation(StatesGroup &state_propagat)
     EKF_stop_flg = false;
     flg_EKF_converged = false;
     /*** Iterative Kalman Filter Update ***/
-    MatrixXd K(DIM_STATE, effct_feat_num_);
+    // MatrixXd K(DIM_STATE, effct_feat_num_);
     // auto &&Hsub_T = Hsub.transpose();
     auto &&HTz = Hsub_T_R_inv * meas_vec;
     // fout_dbg<<"HTz: "<<HTz<<endl;
