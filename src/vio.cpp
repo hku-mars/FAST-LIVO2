@@ -568,6 +568,11 @@ void VIOManager::retrieveFromVisualSparseMap(cv::Mat img, vector<pointWithVar> &
         }
         else
         {
+          for (int j = 0; j < 3; j++)
+          {
+            loc_xyz[j] = floor(sample_point_w[j] / plane_voxel_size);
+            if (loc_xyz[j] < 0) { loc_xyz[j] -= 1.0; }
+          }
           VOXEL_LOCATION sample_pos(loc_xyz[0], loc_xyz[1], loc_xyz[2]);
           auto iter = plane_map.find(sample_pos);
           if (iter != plane_map.end())
@@ -983,7 +988,7 @@ void VIOManager::updateReferencePatch(const unordered_map<VOXEL_LOCATION, VoxelO
     float loc_xyz[3];
     for (int j = 0; j < 3; j++)
     {
-      loc_xyz[j] = p_w[j] / 0.5;
+      loc_xyz[j] = p_w[j] / plane_voxel_size;
       if (loc_xyz[j] < 0) { loc_xyz[j] -= 1.0; }
     }
     VOXEL_LOCATION position((int64_t)loc_xyz[0], (int64_t)loc_xyz[1], (int64_t)loc_xyz[2]);
