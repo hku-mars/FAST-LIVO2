@@ -883,7 +883,6 @@ void LIVMapper::img_cbk(const sensor_msgs::ImageConstPtr &msg_in)
 
 bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
 {
-  if (lid_raw_data_buffer.empty() && lidar_en) return false;
   if (img_buffer.empty() && img_en) return false;
   if (imu_buffer.empty() && imu_en) return false;
 
@@ -891,6 +890,7 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
   {
   case ONLY_LIO:
   {
+    if (lid_raw_data_buffer.empty() && lidar_en) return false;
     if (meas.last_lio_update_time < 0.0) meas.last_lio_update_time = lid_header_time_buffer.front();
     if (!lidar_pushed)
     {
@@ -949,6 +949,7 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
     case WAIT:
     case VIO:
     {
+      if (lid_raw_data_buffer.empty() && lidar_en) return false;
       // printf("!!! meas.lio_vio_flg: %d \n", meas.lio_vio_flg);
       double img_capture_time = img_time_buffer.front() + exposure_time_init;
       /*** has img topic, but img topic timestamp larger than lidar end time,
