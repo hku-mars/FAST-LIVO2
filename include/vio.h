@@ -21,7 +21,7 @@ which is included as part of this source code package.
 #include <vikit/math_utils.h>
 #include <vikit/robust_cost.h>
 #include <vikit/vision.h>
-#include <vikit/pinhole_camera.h>
+#include <vikit/equidistant_camera.h>
 
 struct SubSparseMap
 {
@@ -85,7 +85,8 @@ class VIOManager
 public:
   int grid_size;
   vk::AbstractCamera *cam;
-  vk::PinholeCamera *pinhole_cam;
+  vk::EquidistantCamera *equidistant_cam;
+  // vk::PinholeCamera *pinhole_cam;
   StatesGroup *state;
   StatesGroup *state_propagat;
   M3D Rli, Rci, Rcl, Rcw, Jdphi_dR, Jdp_dt, Jdp_dR;
@@ -119,8 +120,8 @@ public:
   int frame_count = 0;
   bool plot_flag;
 
-  Matrix<double, DIM_STATE, DIM_STATE> G, H_T_H;
-  MatrixXd K, H_sub_inv;
+  Eigen::Matrix<double, DIM_STATE, DIM_STATE> G, H_T_H;
+  Eigen::MatrixXd K, H_sub_inv;
 
   ofstream fout_camera, fout_colmap;
   unordered_map<VOXEL_LOCATION, VOXEL_POINTS *> feat_map;
@@ -153,11 +154,11 @@ public:
   void computeJacobianAndUpdateEKF(cv::Mat img);
   void resetGrid();
   void updateVisualMapPoints(cv::Mat img);
-  void getWarpMatrixAffine(const vk::AbstractCamera &cam, const Vector2d &px_ref, const Vector3d &f_ref, const double depth_ref, const SE3 &T_cur_ref,
+  void getWarpMatrixAffine(const vk::AbstractCamera &cam, const Vector2d &px_ref, const Vector3d &f_ref, const double depth_ref, const SE3<double> &T_cur_ref,
                            const int level_ref, 
                            const int pyramid_level, const int halfpatch_size, Matrix2d &A_cur_ref);
   void getWarpMatrixAffineHomography(const vk::AbstractCamera &cam, const V2D &px_ref,
-                                     const V3D &xyz_ref, const V3D &normal_ref, const SE3 &T_cur_ref, const int level_ref, Matrix2d &A_cur_ref);
+                                     const V3D &xyz_ref, const V3D &normal_ref, const SE3<double> &T_cur_ref, const int level_ref, Matrix2d &A_cur_ref);
   void warpAffine(const Matrix2d &A_cur_ref, const cv::Mat &img_ref, const Vector2d &px_ref, const int level_ref, const int search_level,
                   const int pyramid_level, const int halfpatch_size, float *patch);
   void insertPointIntoVoxelMap(VisualPoint *pt_new);
