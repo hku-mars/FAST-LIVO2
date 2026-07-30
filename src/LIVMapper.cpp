@@ -367,7 +367,10 @@ void LIVMapper::handleLIO()
 
   double t1 = omp_get_wtime();
 
-  voxelmap_manager->StateEstimation(state_propagat);
+  if (voxelmap_manager->config_setting_.adaptive_noise_enable_)
+    voxelmap_manager->StateEstimation(state_propagat, LidarMeasures.last_lio_update_time);
+  else
+    voxelmap_manager->StateEstimationBaseline(state_propagat);
   _state = voxelmap_manager->state_;
   _pv_list = voxelmap_manager->pv_list_;
 
@@ -1176,17 +1179,27 @@ void LIVMapper::publish_frame_world(const ros::Publisher &pubLaserCloudFullRes, 
 
   /*** Publish Frame ***/
   sensor_msgs::PointCloud2 laserCloudmsg;
-  if (slam_mode_ == LIVO && LidarMeasures.lio_vio_flg == VIO)
+  double cloud_timestamp = LidarMeasures.last_lio_update_time;
+  bool cloud_ready = true;
+  if (slam_mode_ == LIVO)
   {
-    pcl::toROSMsg(*laserCloudWorldRGB, laserCloudmsg);
+    cloud_ready = LidarMeasures.lio_vio_flg == VIO && !laserCloudWorldRGB->empty();
+    if (cloud_ready)
+    {
+      pcl::toROSMsg(*laserCloudWorldRGB, laserCloudmsg);
+      cloud_timestamp = LidarMeasures.measures.back().vio_time;
+    }
   }
-  if (slam_mode_ == ONLY_LIO || slam_mode_ == ONLY_LO)
-  { 
-    pcl::toROSMsg(*pcl_w_wait_pub, laserCloudmsg); 
+  else
+  {
+    pcl::toROSMsg(*pcl_w_wait_pub, laserCloudmsg);
   }
-  laserCloudmsg.header.stamp = ros::Time::now(); //.fromSec(last_timestamp_lidar);
-  laserCloudmsg.header.frame_id = "camera_init";
-  pubLaserCloudFullRes.publish(laserCloudmsg);
+  if (cloud_ready)
+  {
+    laserCloudmsg.header.stamp = ros::Time().fromSec(cloud_timestamp);
+    laserCloudmsg.header.frame_id = "camera_init";
+    pubLaserCloudFullRes.publish(laserCloudmsg);
+  }
 
   /**************** save map ****************/
   /* 1. make sure you have enough memories
@@ -1337,8 +1350,38 @@ void LIVMapper::publish_odometry(const ros::Publisher &pubOdomAftMapped)
 {
   odomAftMapped.header.frame_id = "camera_init";
   odomAftMapped.child_frame_id = "aft_mapped";
-  odomAftMapped.header.stamp = ros::Time::now(); //.ros::Time()fromSec(last_timestamp_lidar);
+  // odomAftMapped.header.stamp = ros::Time::now(); //.ros::Time()fromSec(last_timestamp_lidar);
+  odomAftMapped.header.stamp = ros::Time().fromSec(LidarMeasures.last_lio_update_time);
   set_posestamp(odomAftMapped.pose.pose);
+
+  // ROS 顺序：[position, rotation]
+  // FAST-LIVO2 顺序：[rotation, position]
+  for (int i = 0; i < 36; ++i)
+  {
+    odomAftMapped.pose.covariance[i] = 0.0;
+  }
+
+  for (int i = 0; i < 3; ++i)
+  {
+    for (int j = 0; j < 3; ++j)
+    {
+      // position—position covariance
+      odomAftMapped.pose.covariance[i * 6 + j] =
+          _state.cov(3 + i, 3 + j);
+
+      // Position-rotation cross covariance
+      odomAftMapped.pose.covariance[i * 6 + (3 + j)] =
+         _state.cov(3 + i, j);
+
+      // Rotation-position cross covariance
+      odomAftMapped.pose.covariance[(3 + i) * 6 + j] =
+        _state.cov(i, 3 + j);
+
+      // rotation—rotation covariance
+      odomAftMapped.pose.covariance[(3 + i) * 6 + (3 + j)] =
+          _state.cov(i, j);
+    }
+  }
 
   static tf::TransformBroadcaster br;
   tf::Transform transform;

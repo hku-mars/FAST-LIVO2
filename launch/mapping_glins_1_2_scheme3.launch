@@ -1,0 +1,23 @@
+<launch>
+  <arg name="rviz" default="true" />
+
+  <rosparam command="load" file="$(find fast_livo)/config/GLINS_1_2.yaml" />
+  <param name="adaptive_noise/enable" value="true" />
+  <param name="adaptive_noise/mode" value="robust" />
+  <param name="adaptive_noise/log_enable" value="true" />
+  <param name="adaptive_noise/log_file" value="$(find fast_livo)/Log/adaptive_noise_robust.csv" />
+  <param name="adaptive_noise/beta_min" value="1.0" />
+  <param name="adaptive_noise/beta_max" value="20.0" />
+  <param name="adaptive_noise/smooth_alpha" value="0.9" />
+  <param name="adaptive_noise/huber_threshold" value="3.0" />
+  <param name="evo/seq_name" value="fastlivo2_glins_1_2_scheme3" />
+
+  <node pkg="fast_livo" type="fastlivo_mapping" name="laserMapping" output="screen">
+    <rosparam file="$(find fast_livo)/config/camera_GLINS_1_2.yaml" />
+  </node>
+
+  <group if="$(arg rviz)">
+    <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz"
+          args="-d $(find fast_livo)/rviz_cfg/fast_livo2.rviz" />
+  </group>
+</launch>

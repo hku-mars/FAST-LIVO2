@@ -47,6 +47,28 @@ void loadVoxelConfig(ros::NodeHandle &nh, VoxelMapConfig &voxel_config)
   nh.param<int>("lio/max_points_num", voxel_config.max_points_num_, 50);
   nh.param<int>("lio/max_iterations", voxel_config.max_iterations_, 5);
 
+  nh.param<bool>("adaptive_noise/enable", voxel_config.adaptive_noise_enable_, false);
+  nh.param<string>("adaptive_noise/mode", voxel_config.adaptive_noise_mode_, "baseline");
+  nh.param<double>("adaptive_noise/beta_min", voxel_config.beta_min_, 1.0);
+  nh.param<double>("adaptive_noise/beta_max", voxel_config.beta_max_, 20.0);
+  nh.param<double>("adaptive_noise/smooth_alpha", voxel_config.smooth_alpha_, 0.9);
+  nh.param<double>("adaptive_noise/huber_threshold", voxel_config.huber_threshold_, 3.0);
+  nh.param<double>("adaptive_noise/fixed_beta", voxel_config.fixed_beta_, 5.0);
+  nh.param<bool>("adaptive_noise/log_enable", voxel_config.adaptive_noise_log_enable_, false);
+  nh.param<string>("adaptive_noise/log_file", voxel_config.adaptive_noise_log_file_, "");
+
+  if (voxel_config.adaptive_noise_mode_ != "baseline" &&
+      voxel_config.adaptive_noise_mode_ != "direct" &&
+      voxel_config.adaptive_noise_mode_ != "robust" &&
+      voxel_config.adaptive_noise_mode_ != "fixed")
+  {
+    ROS_WARN_STREAM("Unknown adaptive_noise/mode '" << voxel_config.adaptive_noise_mode_
+                    << "'; falling back to baseline.");
+    voxel_config.adaptive_noise_mode_ = "baseline";
+    voxel_config.adaptive_noise_enable_ = false;
+  }
+  voxel_config.smooth_alpha_ = std::min(1.0, std::max(0.0, voxel_config.smooth_alpha_));
+
   nh.param<bool>("local_map/map_sliding_en", voxel_config.map_sliding_en, false);
   nh.param<int>("local_map/half_map_size", voxel_config.half_map_size, 100);
   nh.param<double>("local_map/sliding_thresh", voxel_config.sliding_thresh, 8);
@@ -335,7 +357,7 @@ VoxelOctoTree *VoxelOctoTree::Insert(const pointWithVar &pv)
   return nullptr;
 }
 
-void VoxelMapManager::StateEstimation(StatesGroup &state_propagat)
+void VoxelMapManager::StateEstimationBaseline(StatesGroup &state_propagat)
 {
   cross_mat_list_.clear();
   cross_mat_list_.reserve(feats_down_size_);
@@ -499,6 +521,279 @@ void VoxelMapManager::StateEstimation(StatesGroup &state_propagat)
     if (EKF_stop_flg) break;
   }
 
+  // double t2 = omp_get_wtime();
+  // scan_count++;
+  // ekf_time = t2 - t0 - build_residual_time;
+
+  // ave_build_residual_time = ave_build_residual_time * (scan_count - 1) / scan_count + build_residual_time / scan_count;
+  // ave_ekf_time = ave_ekf_time * (scan_count - 1) / scan_count + ekf_time / scan_count;
+
+  // cout << "[ Mapping ] ekf_time: " << ekf_time << "s, build_residual_time: " << build_residual_time << "s" << endl;
+  // cout << "[ Mapping ] ave_ekf_time: " << ave_ekf_time << "s, ave_build_residual_time: " << ave_build_residual_time << "s" << endl;
+}
+
+void VoxelMapManager::StateEstimation(StatesGroup &state_propagat, double frame_timestamp)
+{
+  cross_mat_list_.clear();
+  cross_mat_list_.reserve(feats_down_size_);
+  body_cov_list_.clear();
+  body_cov_list_.reserve(feats_down_size_);
+
+  // build_residual_time = 0.0;
+  // ekf_time = 0.0;
+  // double t0 = omp_get_wtime();
+
+  for (size_t i = 0; i < feats_down_body_->size(); i++)
+  {
+    V3D point_this(feats_down_body_->points[i].x, feats_down_body_->points[i].y, feats_down_body_->points[i].z);
+    if (point_this[2] == 0) { point_this[2] = 0.001; }
+    M3D var;
+    calcBodyCov(point_this, config_setting_.dept_err_, config_setting_.beam_err_, var);
+    body_cov_list_.push_back(var);
+    point_this = extR_ * point_this + extT_;
+    M3D point_crossmat;
+    point_crossmat << SKEW_SYM_MATRX(point_this);
+    cross_mat_list_.push_back(point_crossmat);
+  }
+
+  vector<pointWithVar>().swap(pv_list_);
+  pv_list_.resize(feats_down_size_);
+
+  int rematch_num = 0;
+  MD(DIM_STATE, DIM_STATE) G, H_T_H, I_STATE;
+  G.setZero();
+  H_T_H.setZero();
+  I_STATE.setIdentity();
+
+  const double beta_min = std::max(1e-6, config_setting_.beta_min_);
+  const double beta_max = std::max(beta_min, config_setting_.beta_max_);
+  const std::string mode = config_setting_.adaptive_noise_mode_;
+  const bool adaptive_enabled = config_setting_.adaptive_noise_enable_ && mode != "baseline";
+  double beta_applied = 1.0;
+  if (adaptive_enabled)
+  {
+    if (mode == "fixed")
+      beta_applied = std::max(1e-6, config_setting_.fixed_beta_);
+    else
+      beta_applied = std::min(beta_max, std::max(beta_min, beta_used_));
+  }
+  beta_used_ = beta_applied;
+
+  bool flg_EKF_inited, flg_EKF_converged, EKF_stop_flg = 0;
+  Eigen::VectorXd final_measurement_variance;
+  for (int iterCount = 0; iterCount < config_setting_.max_iterations_; iterCount++)
+  {
+    double total_residual = 0.0;
+    pcl::PointCloud<pcl::PointXYZI>::Ptr world_lidar(new pcl::PointCloud<pcl::PointXYZI>);
+    TransformLidar(state_.rot_end, state_.pos_end, feats_down_body_, world_lidar);
+    M3D rot_var = state_.cov.block<3, 3>(0, 0);
+    M3D t_var = state_.cov.block<3, 3>(3, 3);
+    for (size_t i = 0; i < feats_down_body_->size(); i++)
+    {
+      pointWithVar &pv = pv_list_[i];
+      pv.point_b << feats_down_body_->points[i].x, feats_down_body_->points[i].y, feats_down_body_->points[i].z;
+      pv.point_w << world_lidar->points[i].x, world_lidar->points[i].y, world_lidar->points[i].z;
+
+      M3D cov = body_cov_list_[i];
+      M3D point_crossmat = cross_mat_list_[i];
+      cov = state_.rot_end * cov * state_.rot_end.transpose() + (-point_crossmat) * rot_var * (-point_crossmat.transpose()) + t_var;
+      pv.var = cov;
+      pv.body_var = body_cov_list_[i];
+    }
+    ptpl_list_.clear();
+
+    // double t1 = omp_get_wtime();
+
+    BuildResidualListOMP(pv_list_, ptpl_list_);
+
+    // build_residual_time += omp_get_wtime() - t1;
+
+    for (int i = 0; i < ptpl_list_.size(); i++)
+    {
+      total_residual += fabs(ptpl_list_[i].dis_to_plane_);
+    }
+    effct_feat_num_ = ptpl_list_.size();
+    cout << "[ LIO ] Raw feature num: " << feats_undistort_->size() << ", downsampled feature num:" << feats_down_size_ 
+         << " effective feature num: " << effct_feat_num_ << " average residual: "
+         << (effct_feat_num_ > 0 ? total_residual / effct_feat_num_ : 0.0) << endl;
+
+    /*** Computation of Measuremnt Jacobian matrix H and measurents covarience
+     * ***/
+    MatrixXd Hsub(effct_feat_num_, 6);
+    MatrixXd Hsub_T_R_inv(6, effct_feat_num_);
+    VectorXd R_inv(effct_feat_num_);
+    VectorXd measurement_variance;
+    if (adaptive_enabled) measurement_variance.resize(effct_feat_num_);
+    VectorXd meas_vec(effct_feat_num_);
+    meas_vec.setZero();
+    for (int i = 0; i < effct_feat_num_; i++)
+    {
+      auto &ptpl = ptpl_list_[i];
+      V3D point_this(ptpl.point_b_);
+      point_this = extR_ * point_this + extT_;
+      V3D point_body(ptpl.point_b_);
+      M3D point_crossmat;
+      point_crossmat << SKEW_SYM_MATRX(point_this);
+
+      /*** get the normal vector of closest surface/corner ***/
+
+      V3D point_world = state_propagat.rot_end * point_this + state_propagat.pos_end;
+      Eigen::Matrix<double, 1, 6> J_nq;
+      J_nq.block<1, 3>(0, 0) = point_world - ptpl_list_[i].center_;
+      J_nq.block<1, 3>(0, 3) = -ptpl_list_[i].normal_;
+
+      M3D var;
+      // V3D normal_b = state_.rot_end.inverse() * ptpl_list_[i].normal_;
+      // V3D point_b = ptpl_list_[i].point_b_;
+      // double cos_theta = fabs(normal_b.dot(point_b) / point_b.norm());
+      // ptpl_list_[i].body_cov_ = ptpl_list_[i].body_cov_ * (1.0 / cos_theta) * (1.0 / cos_theta);
+
+      // point_w cov
+      // var = state_propagat.rot_end * extR_ * ptpl_list_[i].body_cov_ * (state_propagat.rot_end * extR_).transpose() +
+      //       state_propagat.cov.block<3, 3>(3, 3) + (-point_crossmat) * state_propagat.cov.block<3, 3>(0, 0) * (-point_crossmat).transpose();
+
+      // point_w cov (another_version)
+      // var = state_propagat.rot_end * extR_ * ptpl_list_[i].body_cov_ * (state_propagat.rot_end * extR_).transpose() +
+      //       state_propagat.cov.block<3, 3>(3, 3) - point_crossmat * state_propagat.cov.block<3, 3>(0, 0) * point_crossmat;
+
+      // point_body cov
+      var = state_propagat.rot_end * extR_ * ptpl_list_[i].body_cov_ * (state_propagat.rot_end * extR_).transpose();
+
+      double sigma_l = J_nq * ptpl_list_[i].plane_var_ * J_nq.transpose();
+
+      const double base_variance =
+          0.001 + sigma_l + ptpl_list_[i].normal_.transpose() * var * ptpl_list_[i].normal_;
+      if (adaptive_enabled)
+      {
+        measurement_variance(i) = std::max(1e-12, base_variance);
+        R_inv(i) = 1.0 / (beta_applied * measurement_variance(i));
+      }
+      else
+      {
+        R_inv(i) = 1.0 / base_variance;
+      }
+      // R_inv(i) = 1.0 / (sigma_l + ptpl_list_[i].normal_.transpose() * var * ptpl_list_[i].normal_);
+
+      /*** calculate the Measuremnt Jacobian matrix H ***/
+      V3D A(point_crossmat * state_.rot_end.transpose() * ptpl_list_[i].normal_);
+      Hsub.row(i) << VEC_FROM_ARRAY(A), ptpl_list_[i].normal_[0], ptpl_list_[i].normal_[1], ptpl_list_[i].normal_[2];
+      Hsub_T_R_inv.col(i) << A[0] * R_inv(i), A[1] * R_inv(i), A[2] * R_inv(i), ptpl_list_[i].normal_[0] * R_inv(i),
+          ptpl_list_[i].normal_[1] * R_inv(i), ptpl_list_[i].normal_[2] * R_inv(i);
+      meas_vec(i) = -ptpl_list_[i].dis_to_plane_;
+    }
+    if (adaptive_enabled) final_measurement_variance = measurement_variance;
+    EKF_stop_flg = false;
+    flg_EKF_converged = false;
+    /*** Iterative Kalman Filter Update ***/
+    MatrixXd K(DIM_STATE, effct_feat_num_);
+    // auto &&Hsub_T = Hsub.transpose();
+    auto &&HTz = Hsub_T_R_inv * meas_vec;
+    // fout_dbg<<"HTz: "<<HTz<<endl;
+    H_T_H.block<6, 6>(0, 0) = Hsub_T_R_inv * Hsub;
+    // EigenSolver<Matrix<double, 6, 6>> es(H_T_H.block<6,6>(0,0));
+    MD(DIM_STATE, DIM_STATE) &&K_1 = (H_T_H.block<DIM_STATE, DIM_STATE>(0, 0) + state_.cov.block<DIM_STATE, DIM_STATE>(0, 0).inverse()).inverse();
+    G.block<DIM_STATE, 6>(0, 0) = K_1.block<DIM_STATE, 6>(0, 0) * H_T_H.block<6, 6>(0, 0);
+    auto vec = state_propagat - state_;
+    VD(DIM_STATE)
+    solution = K_1.block<DIM_STATE, 6>(0, 0) * HTz + vec.block<DIM_STATE, 1>(0, 0) - G.block<DIM_STATE, 6>(0, 0) * vec.block<6, 1>(0, 0);
+    int minRow, minCol;
+    state_ += solution;
+    auto rot_add = solution.block<3, 1>(0, 0);
+    auto t_add = solution.block<3, 1>(3, 0);
+    if ((rot_add.norm() * 57.3 < 0.01) && (t_add.norm() * 100 < 0.015)) { flg_EKF_converged = true; }
+    V3D euler_cur = state_.rot_end.eulerAngles(2, 1, 0);
+
+    /*** Rematch Judgement ***/
+
+    if (flg_EKF_converged || ((rematch_num == 0) && (iterCount == (config_setting_.max_iterations_ - 2)))) { rematch_num++; }
+
+    /*** Convergence Judgements and Covariance Update ***/
+    if (!EKF_stop_flg && (rematch_num >= 2 || (iterCount == config_setting_.max_iterations_ - 1)))
+    {
+      /*** Covariance Update ***/
+      // _state.cov = (I_STATE - G) * _state.cov;
+      state_.cov.block<DIM_STATE, DIM_STATE>(0, 0) =
+          (I_STATE.block<DIM_STATE, DIM_STATE>(0, 0) - G.block<DIM_STATE, DIM_STATE>(0, 0)) * state_.cov.block<DIM_STATE, DIM_STATE>(0, 0);
+      // total_distance += (_state.pos_end - position_last).norm();
+      position_last_ = state_.pos_end;
+      geoQuat_ = tf::createQuaternionMsgFromRollPitchYaw(euler_cur(0), euler_cur(1), euler_cur(2));
+
+      // VD(DIM_STATE) K_sum  = K.rowwise().sum();
+      // VD(DIM_STATE) P_diag = _state.cov.diagonal();
+      EKF_stop_flg = true;
+    }
+    if (EKF_stop_flg) break;
+  }
+
+  // Estimate the residual scale after this frame has converged. The
+  // resulting beta is applied to the next frame, so a frame is never
+  // re-linearized with a scale estimated from its own posterior residual.
+  if (adaptive_enabled)
+  {
+  beta_raw_ = 1.0;
+  residual_energy_ = 0.0;
+  mean_abs_residual_ = 0.0;
+  double next_beta = beta_applied;
+  if (effct_feat_num_ > 0 && final_measurement_variance.size() == effct_feat_num_)
+  {
+    double squared_energy = 0.0;
+    double robust_energy = 0.0;
+    double absolute_residual = 0.0;
+    const double huber_threshold = std::max(1e-6, config_setting_.huber_threshold_);
+    for (int i = 0; i < effct_feat_num_; ++i)
+    {
+      const PointToPlane &ptpl = ptpl_list_[i];
+      V3D point_this = extR_ * ptpl.point_b_ + extT_;
+      V3D point_world = state_.rot_end * point_this + state_.pos_end;
+      const double residual = ptpl.normal_.dot(point_world) + ptpl.d_;
+      const double normalized = residual / std::sqrt(final_measurement_variance(i));
+      const double abs_normalized = std::fabs(normalized);
+      squared_energy += normalized * normalized;
+      robust_energy += abs_normalized <= huber_threshold
+                           ? normalized * normalized
+                           : 2.0 * huber_threshold * abs_normalized - huber_threshold * huber_threshold;
+      absolute_residual += std::fabs(residual);
+    }
+    const double degrees_of_freedom = std::max(1, effct_feat_num_ - 6);
+    residual_energy_ = squared_energy / degrees_of_freedom;
+    beta_raw_ = (mode == "robust" ? robust_energy : squared_energy) / degrees_of_freedom;
+    mean_abs_residual_ = absolute_residual / effct_feat_num_;
+    if (adaptive_enabled)
+    {
+      if (mode == "fixed")
+        next_beta = std::max(1e-6, config_setting_.fixed_beta_);
+      else
+      {
+        const double target_beta = std::min(beta_max, std::max(beta_min, beta_raw_));
+        next_beta = mode == "robust"
+                        ? config_setting_.smooth_alpha_ * beta_applied +
+                              (1.0 - config_setting_.smooth_alpha_) * target_beta
+                        : target_beta;
+        next_beta = std::min(beta_max, std::max(beta_min, next_beta));
+      }
+    }
+  }
+  beta_used_ = next_beta;
+  if (config_setting_.adaptive_noise_log_enable_)
+  {
+    if (!adaptive_noise_log_.is_open())
+    {
+      std::string path = config_setting_.adaptive_noise_log_file_;
+      if (path.empty()) path = std::string(ROOT_DIR) + "Log/adaptive_noise_" + mode + ".csv";
+      adaptive_noise_log_.open(path.c_str(), std::ios::out | std::ios::trunc);
+      if (adaptive_noise_log_.is_open())
+        adaptive_noise_log_ << "frame,timestamp,mode,beta_used,beta_raw,normalized_energy,mean_abs_residual,effective_features\n";
+    }
+    if (adaptive_noise_log_.is_open())
+    {
+      adaptive_noise_log_ << current_frame_id_ << "," << std::setprecision(15) << frame_timestamp << ","
+                          << mode << "," << beta_applied << "," << beta_raw_ << ","
+                          << residual_energy_ << "," << mean_abs_residual_ << "," << effct_feat_num_ << "\n";
+      adaptive_noise_log_.flush();
+    }
+  }
+  ++current_frame_id_;
+  }
   // double t2 = omp_get_wtime();
   // scan_count++;
   // ekf_time = t2 - t0 - build_residual_time;

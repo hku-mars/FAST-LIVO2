@@ -49,6 +49,17 @@ typedef struct VoxelMapConfig
   double sliding_thresh;
   bool map_sliding_en;
   int half_map_size;
+
+  // Optional adaptive LiDAR measurement-noise scaling.
+  bool adaptive_noise_enable_ = false;
+  std::string adaptive_noise_mode_ = "baseline";
+  double beta_min_ = 1.0;
+  double beta_max_ = 20.0;
+  double smooth_alpha_ = 0.9;
+  double huber_threshold_ = 3.0;
+  double fixed_beta_ = 5.0;
+  bool adaptive_noise_log_enable_ = false;
+  std::string adaptive_noise_log_file_;
 } VoxelMapConfig;
 
 typedef struct PointToPlane
@@ -212,6 +223,11 @@ public:
 
   int feats_down_size_;
   int effct_feat_num_;
+  double beta_used_ = 1.0;
+  double beta_raw_ = 1.0;
+  double residual_energy_ = 0.0;
+  double mean_abs_residual_ = 0.0;
+  std::ofstream adaptive_noise_log_;
   std::vector<M3D> cross_mat_list_;
   std::vector<M3D> body_cov_list_;
   std::vector<pointWithVar> pv_list_;
@@ -226,7 +242,8 @@ public:
     feats_down_world_.reset(new PointCloudXYZI());
   };
 
-  void StateEstimation(StatesGroup &state_propagat);
+  void StateEstimationBaseline(StatesGroup &state_propagat);
+  void StateEstimation(StatesGroup &state_propagat, double frame_timestamp = -1.0);
   void TransformLidar(const Eigen::Matrix3d rot, const Eigen::Vector3d t, const PointCloudXYZI::Ptr &input_cloud,
                       pcl::PointCloud<pcl::PointXYZI>::Ptr &trans_cloud);
 

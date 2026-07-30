@@ -1,0 +1,105 @@
+common:
+  img_topic: "/gici/image_raw"
+  lid_topic: "/livox/lidar"
+  imu_topic: "/gici/imu_raw"
+  img_en: 1
+  lidar_en: 1
+  ros_driver_bug_fix: false
+
+extrin_calib:
+  # LiDAR -> IMU/body, from GLINS T_B_L.
+  extrinsic_T: [-0.0255208369, 0.1905764402, -0.0183429036]
+  extrinsic_R: [-0.005235963831, -0.006981164601, 0.9999619233,
+                -0.015707102, -0.999851692, -0.007062639978,
+                0.9998629264, -0.01574348365, 0.005125533432]
+  # LiDAR -> camera, computed as inverse(T_B_C) * T_B_L.
+  Rcl: [-0.013764996638, -0.999884865718, 0.006385930372,
+         0.001024408746, -0.006400634123, -0.999978991027,
+         0.999904733169, -0.013758165644, 0.001112395509]
+  Pcl: [0.179359892440, 0.005128198331, -0.043692440373]
+
+time_offset:
+  # No inter-sensor offsets are provided by the GLINS configs.
+  imu_time_offset: 0.0
+  img_time_offset: 0.0
+  exposure_time_init: 0.0
+
+preprocess:
+  point_filter_num: 1
+  filter_size_surf: 0.1
+  lidar_type: 1 # Livox CustomMsg / Avia
+  scan_line: 6
+  blind: 2.0 # Match the GLINS LiDAR configuration.
+
+vio:
+  max_iterations: 5
+  outlier_threshold: 1000
+  img_point_cov: 100
+  patch_size: 8
+  patch_pyrimid_level: 4
+  normal_en: true
+  raycast_en: false
+  inverse_composition_en: false
+  exposure_estimate_en: true
+  inv_expo_cov: 0.1
+
+imu:
+  imu_en: true
+  imu_int_frame: 30
+  acc_cov: 0.5
+  gyr_cov: 0.3
+  b_acc_cov: 0.0001
+  b_gyr_cov: 0.0001
+
+lio:
+  max_iterations: 5
+  dept_err: 0.02
+  beam_err: 0.05
+  min_eigen_value: 0.0025
+  voxel_size: 0.5
+  max_layer: 2
+  max_points_num: 50
+  layer_init_num: [5, 5, 5, 5, 5]
+
+
+adaptive_noise:
+  enable: false
+  mode: baseline
+  beta_min: 1.0
+  beta_max: 20.0
+  smooth_alpha: 0.9
+  huber_threshold: 3.0
+  fixed_beta: 5.0
+  log_enable: false
+  log_file: ""
+
+local_map:
+  map_sliding_en: false
+  half_map_size: 100
+  sliding_thresh: 8
+
+uav:
+  imu_rate_odom: false
+  gravity_align_en: false
+
+publish:
+  dense_map_en: true
+  pub_effect_point_en: false
+  pub_plane_en: true
+  pub_scan_num: 1
+  blind_rgb_points: 0.0
+
+evo:
+  seq_name: "fastlivo2_glins_1_2_scheme1"
+  pose_output_en: true
+
+pcd_save:
+  pcd_save_en: false
+  type: 0
+  colmap_output_en: false
+  filter_size_pcd: 0.15
+  interval: -1
+
+image_save:
+  img_save_en: false
+  interval: 1

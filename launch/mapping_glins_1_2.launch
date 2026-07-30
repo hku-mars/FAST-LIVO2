@@ -1,0 +1,19 @@
+<launch>
+  <arg name="rviz" default="true" />
+  <arg name="use_sim_time" default="true" />
+
+  <param name="use_sim_time" value="$(arg use_sim_time)" />
+  <rosparam command="load" file="$(find fast_livo)/config/GLINS_1_2.yaml" />
+  <param name="adaptive_noise/enable" value="false" />
+  <param name="adaptive_noise/mode" value="baseline" />
+  <param name="adaptive_noise/log_enable" value="false" />
+
+  <node pkg="fast_livo" type="fastlivo_mapping" name="laserMapping" output="screen">
+    <rosparam file="$(find fast_livo)/config/camera_GLINS_1_2.yaml" />
+  </node>
+
+  <group if="$(arg rviz)">
+    <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz"
+          args="-d $(find fast_livo)/rviz_cfg/fast_livo2.rviz" />
+  </group>
+</launch>
