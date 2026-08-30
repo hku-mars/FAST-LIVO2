@@ -899,6 +899,7 @@ void VIOManager::generateVisualMapPoints(cv::Mat img, vector<pointWithVar> &pg)
 
   // double t_b2 = omp_get_wtime() - t0;
 
+  last_append = add;
   printf("[ VIO ] Append %d new visual map points\n", add);
   // printf("pg.size: %d \n", pg.size());
   // printf("B1. : %.6lf \n", t_b1);
@@ -907,7 +908,10 @@ void VIOManager::generateVisualMapPoints(cv::Mat img, vector<pointWithVar> &pg)
 
 void VIOManager::updateVisualMapPoints(cv::Mat img)
 {
-  if (total_points == 0) return;
+  if (total_points == 0) {
+    last_update_n = 0;
+    return;
+  }
 
   int update_num = 0;
   SE3 pose_cur = new_frame_->T_f_w_;
@@ -963,6 +967,7 @@ void VIOManager::updateVisualMapPoints(cv::Mat img)
       pt->addFrameRef(ftr_new);
     }
   }
+  last_update_n = update_num;
   printf("[ VIO ] Update %d points in visual submap\n", update_num);
 }
 
@@ -1832,7 +1837,13 @@ void VIOManager::processFrame(cv::Mat &img, vector<pointWithVar> &pg, const unor
   if(colmap_output_en)  dumpDataForColmap();
 
   frame_count++;
-  ave_total = ave_total * (frame_count - 1) / frame_count + (t7 - t1 - (t5 - t4)) / frame_count;
+  last_t_retrieve = t2 - t1;
+  last_t_jacobian_ekf = t3 - t2;
+  last_t_generate = t4 - t3;
+  last_t_update_points = t6 - t5;
+  last_t_update_patch = t7 - t6;
+  last_t_current = t7 - t1 - (t5 - t4);
+  ave_total = ave_total * (frame_count - 1) / frame_count + last_t_current / frame_count;
 
   // printf("[ VIO ] feat_map.size(): %zu\n", feat_map.size());
   // printf("\033[1;32m[ VIO time ]: current frame: retrieveFromVisualSparseMap time: %.6lf secs.\033[0m\n", t2 - t1);

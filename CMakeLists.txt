@@ -101,6 +101,9 @@ find_package(Boost REQUIRED COMPONENTS thread)
 
 set(Sophus_LIBRARIES libSophus.so)
 
+add_message_files(FILES Diagnostics.msg)
+generate_messages(DEPENDENCIES std_msgs)
+
 # Define the catkin package
 catkin_package(
   CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs message_runtime cv_bridge vikit_common vikit_ros image_transport
@@ -124,8 +127,13 @@ add_library(pre src/preprocess.cpp)
 add_library(imu_proc src/IMU_Processing.cpp)
 add_library(laser_mapping src/LIVMapper.cpp)
 
+add_dependencies(vio ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(lio ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(laser_mapping ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
 # Add the main executable
 add_executable(fastlivo_mapping src/main.cpp)
+add_dependencies(fastlivo_mapping ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 # Link libraries to the executable
 target_link_libraries(fastlivo_mapping
@@ -144,4 +152,60 @@ target_link_libraries(fastlivo_mapping
 # Link mimalloc if found
 if(mimalloc_FOUND)
   target_link_libraries(fastlivo_mapping mimalloc)
+endif()
+
+# Official usage (https://koide3.github.io/iridescence/):
+#   find_package(Iridescence REQUIRED)
+#   target_link_libraries(... Iridescence::Iridescence)
+# iridescence-config.cmake then does:
+#   include(iridescence-targets.cmake)
+#   add_library(Iridescence::Iridescence ALIAS Iridescence::iridescence)
+# CMake 3.16 (Ubuntu 20.04 / Noetic) cannot ALIAS a non-GLOBAL imported target
+# from a catkin subdirectory. Load the same files and make the import GLOBAL
+# so the documented Iridescence::Iridescence name exists.
+find_path(IRIDESCENCE_CMAKE_DIR iridescence-config.cmake
+  HINTS
+    ${CMAKE_PREFIX_PATH}
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../.local/iridescence"
+    /usr/local
+    /usr
+  PATH_SUFFIXES lib/cmake/iridescence
+)
+
+if(IRIDESCENCE_CMAKE_DIR)
+  include(CMakeFindDependencyMacro)
+  find_dependency(OpenGL REQUIRED)
+  find_dependency(Eigen3 REQUIRED)
+  find_dependency(PNG)
+  find_dependency(JPEG)
+  include("${IRIDESCENCE_CMAKE_DIR}/iridescence-targets.cmake")
+  set_property(TARGET Iridescence::iridescence PROPERTY IMPORTED_GLOBAL TRUE)
+  if(NOT TARGET Iridescence::Iridescence)
+    add_library(Iridescence::Iridescence ALIAS Iridescence::iridescence)
+  endif()
+
+  add_executable(fastlivo_viewer src/viewer.cpp)
+  add_dependencies(fastlivo_viewer ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+  # GLIM default is BUILD_WITH_MARCH_NATIVE=OFF. LightViewer is `new`'d without
+  # EIGEN_MAKE_ALIGNED_OPERATOR_NEW and stores Eigen::Matrix4f; AVX from the
+  # package-wide -march=native faults in ShaderSetting.
+  target_compile_options(fastlivo_viewer PRIVATE -mno-avx -mno-avx2 -mno-fma)
+  target_link_libraries(fastlivo_viewer
+    ${roscpp_LIBRARIES}
+    ${cv_bridge_LIBRARIES}
+    ${image_transport_LIBRARIES}
+    ${pcl_conversions_LIBRARIES}
+    ${PCL_COMMON_LIBRARIES}
+    opencv_core
+    opencv_imgproc
+    Iridescence::Iridescence
+  )
+
+  get_filename_component(_iri_prefix "${IRIDESCENCE_CMAKE_DIR}/../../.." ABSOLUTE)
+  set_target_properties(fastlivo_viewer PROPERTIES
+    BUILD_RPATH "${_iri_prefix}/lib"
+    INSTALL_RPATH "${_iri_prefix}/lib"
+  )
+else()
+  message(WARNING "Iridescence not found. fastlivo_viewer skipped. Install libiridescence-dev or build koide3/iridescence.")
 endif()

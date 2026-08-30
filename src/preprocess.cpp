@@ -55,6 +55,8 @@ void Preprocess::process(const livox_ros_driver::CustomMsg::ConstPtr &msg, Point
 {
   avia_handler(msg);
   *pcl_out = pl_surf;
+  last_input_n = static_cast<int>(msg->point_num);
+  last_output_n = static_cast<int>(pl_surf.size());
 }
 
 void Preprocess::process(const sensor_msgs::PointCloud2::ConstPtr &msg, PointCloudXYZI::Ptr &pcl_out)
@@ -90,6 +92,8 @@ void Preprocess::process(const sensor_msgs::PointCloud2::ConstPtr &msg, PointClo
     break;
   }
   *pcl_out = pl_surf;
+  last_input_n = static_cast<int>(msg->width * msg->height);
+  last_output_n = static_cast<int>(pl_surf.size());
 }
 
 void Preprocess::avia_handler(const livox_ros_driver::CustomMsg::ConstPtr &msg)

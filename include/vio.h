@@ -113,6 +113,14 @@ public:
 
   double compute_jacobian_time, update_ekf_time;
   double ave_total = 0;
+  int last_append = 0;
+  int last_update_n = 0;
+  double last_t_retrieve = 0;
+  double last_t_jacobian_ekf = 0;
+  double last_t_generate = 0;
+  double last_t_update_points = 0;
+  double last_t_update_patch = 0;
+  double last_t_current = 0;
   // double ave_build_residual_time = 0;
   // double ave_ekf_time = 0;
 

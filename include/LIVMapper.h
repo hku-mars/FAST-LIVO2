@@ -17,6 +17,7 @@ which is included as part of this source code package.
 #include "vio.h"
 #include "preprocess.h"
 #include <cv_bridge/cv_bridge.h>
+#include <fast_livo/Diagnostics.h>
 #include <image_transport/image_transport.h>
 #include <nav_msgs/Path.h>
 #include <vikit/camera_loader.h>
@@ -56,6 +57,7 @@ public:
   void publish_odometry(const ros::Publisher &pubOdomAftMapped);
   void publish_mavros(const ros::Publisher &mavros_pose_publisher);
   void publish_path(const ros::Publisher pubPath);
+  void publish_diagnostics();
   void readParameters(ros::NodeHandle &nh);
   template <typename T> void set_posestamp(T &out);
   template <typename T> void pointBodyToWorld(const Eigen::Matrix<T, 3, 1> &pi, Eigen::Matrix<T, 3, 1> &po);
@@ -176,6 +178,8 @@ public:
   ros::Publisher pubLaserCloudDynDbg;
   image_transport::Publisher pubImage;
   ros::Publisher mavros_pose_publisher;
+  ros::Publisher pubDiagnostics;
+  fast_livo::Diagnostics last_diag;
   ros::Timer imu_prop_timer;
 
   int frame_num = 0;
