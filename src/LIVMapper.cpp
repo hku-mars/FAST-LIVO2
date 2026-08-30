@@ -12,6 +12,9 @@ which is included as part of this source code package.
 
 #include "LIVMapper.h"
 
+#include <algorithm>
+#include <cmath>
+
 LIVMapper::LIVMapper(ros::NodeHandle &nh)
     : extT(0, 0, 0),
       extR(M3D::Identity())
@@ -212,6 +215,7 @@ void LIVMapper::initializeSubscribersAndPublishers(ros::NodeHandle &nh, image_tr
   mavros_pose_publisher = nh.advertise<geometry_msgs::PoseStamped>("/mavros/vision_pose/pose", 10);
   pubImage = it.advertise("/rgb_img", 1);
   pubImuPropOdom = nh.advertise<nav_msgs::Odometry>("/LIVO2/imu_propagate", 10000);
+  pubDiagnostics = nh.advertise<fast_livo::Diagnostics>("/fast_livo/diagnostics", 50);
   imu_prop_timer = nh.createTimer(ros::Duration(0.004), &LIVMapper::imu_prop_callback, this);
   voxelmap_manager->voxel_map_pub_= nh.advertise<visualization_msgs::MarkerArray>("/planes", 10000);
 }
@@ -326,6 +330,23 @@ void LIVMapper::handleVIO()
 
   publish_frame_world(pubLaserCloudFullRes, vio_manager);
   publish_img_rgb(pubImage, vio_manager);
+
+  last_diag.source = fast_livo::Diagnostics::SOURCE_VIO;
+  last_diag.vio_retrieve = vio_manager->last_t_retrieve;
+  last_diag.vio_jacobian_ekf = vio_manager->last_t_jacobian_ekf;
+  last_diag.vio_compute_jacobian = vio_manager->compute_jacobian_time;
+  last_diag.vio_update_ekf = vio_manager->update_ekf_time;
+  last_diag.vio_generate = vio_manager->last_t_generate;
+  last_diag.vio_update_points = vio_manager->last_t_update_points;
+  last_diag.vio_update_patch = vio_manager->last_t_update_patch;
+  last_diag.vio_current_total = vio_manager->last_t_current;
+  last_diag.vio_average_total = vio_manager->ave_total;
+  last_diag.vio_sparse_map = static_cast<int>(vio_manager->feat_map.size());
+  last_diag.vio_raw_feat = static_cast<int>(pcl_w_wait_pub->points.size());
+  last_diag.vio_retrieve_n = vio_manager->total_points;
+  last_diag.vio_append_n = vio_manager->last_append;
+  last_diag.vio_update_n = vio_manager->last_update_n;
+  publish_diagnostics();
 
   euler_cur = RotMtoEuler(_state.rot_end);
   fout_out << std::setw(20) << LidarMeasures.last_lio_update_time - _first_lidar_time << " " << euler_cur.transpose() * 57.3 << " "
@@ -474,6 +495,18 @@ void LIVMapper::handleLIO()
   printf("\033[1;36m| %-29s | %-27f |\033[0m\n", "Current Total Time", t4 - t0);
   printf("\033[1;36m| %-29s | %-27f |\033[0m\n", "Average Total Time", aver_time_consu);
   printf("\033[1;34m+-------------------------------------------------------------+\033[0m\n");
+
+  last_diag.source = fast_livo::Diagnostics::SOURCE_LIO;
+  last_diag.lio_downsample = t_down - t0;
+  last_diag.lio_icp = t2 - t1;
+  last_diag.lio_update_voxel = t4 - t3;
+  last_diag.lio_current_total = t4 - t0;
+  last_diag.lio_average_total = aver_time_consu;
+  last_diag.lio_raw_feat = voxelmap_manager->last_raw_feat_;
+  last_diag.lio_down_feat = voxelmap_manager->feats_down_size_;
+  last_diag.lio_effective_feat = voxelmap_manager->effct_feat_num_;
+  last_diag.lio_avg_residual = voxelmap_manager->last_avg_residual_;
+  publish_diagnostics();
 
   euler_cur = RotMtoEuler(_state.rot_end);
   fout_out << std::setw(20) << LidarMeasures.last_lio_update_time - _first_lidar_time << " " << euler_cur.transpose() * 57.3 << " "
@@ -1368,4 +1401,25 @@ void LIVMapper::publish_path(const ros::Publisher pubPath)
   msg_body_pose.header.frame_id = "camera_init";
   path.poses.push_back(msg_body_pose);
   pubPath.publish(path);
+}
+
+void LIVMapper::publish_diagnostics()
+{
+  last_diag.header.stamp = ros::Time::now();
+  last_diag.header.frame_id = "camera_init";
+  last_diag.preprocess_in = p_pre->last_input_n;
+  last_diag.preprocess_out = p_pre->last_output_n;
+
+  auto stdev = [this](int i) {
+    return std::sqrt(std::max(0.0, _state.cov(i, i)));
+  };
+  last_diag.pos_std_x = stdev(3);
+  last_diag.pos_std_y = stdev(4);
+  last_diag.pos_std_z = stdev(5);
+  last_diag.pos_std = std::sqrt(
+    last_diag.pos_std_x * last_diag.pos_std_x + last_diag.pos_std_y * last_diag.pos_std_y + last_diag.pos_std_z * last_diag.pos_std_z);
+  last_diag.rot_std = std::sqrt(std::max(0.0, (_state.cov(0, 0) + _state.cov(1, 1) + _state.cov(2, 2)) / 3.0));
+  last_diag.vel_std = std::sqrt(std::max(0.0, (_state.cov(7, 7) + _state.cov(8, 8) + _state.cov(9, 9)) / 3.0));
+
+  pubDiagnostics.publish(last_diag);
 }

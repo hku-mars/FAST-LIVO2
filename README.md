@@ -46,6 +46,20 @@ Our associate dataset [**FAST-LIVO2-Dataset**](https://connecthkuhk-my.sharepoin
 ### 1.5 Our LiDAR-camera calibration method
 The [**FAST-Calib**](https://github.com/hku-mars/FAST-Calib) toolkit is recommended. Its output extrinsic parameters can be directly filled into the YAML file. 
 
+### 1.6 This branch (`iridescence`)
+
+Replaces RViz with an [Iridescence](https://koide3.github.io/iridescence/) viewer (`fastlivo_viewer`). Mapping is unchanged. `viewer:=false` is headless.
+
+- Live registered map (`/cloud_registered`) uploaded in 50k-point chunks
+- RGB colouring when the cloud has colour; XYZ heatmap (X / Y / Z) with a turbo colormap
+- Heatmap range from Tukey inliers on the selected axis (outliers do not stretch the scale)
+- Green trajectory (`/path`), pose axes, optional follow-track
+- Orbit camera: left drag rotate, middle or right drag pan, scroll zoom
+- Camera image (`/rgb_img`) in the HUD, with a scale slider
+- CPU, GPU, GPU memory, host memory, and FPS as percentages
+- Resizable plots of LIO / VIO timings, average residual, feature counts, and EKF path noise (position / rotation / velocity 1-sigma)
+- `/fast_livo/diagnostics` published on every LIO and VIO update
+
 ## 2. Prerequisited
 
 ### 2.1 Ubuntu and ROS
@@ -60,7 +74,41 @@ Eigen>=3.3.4, Follow [Eigen Installation](https://eigen.tuxfamily.org/index.php?
 
 OpenCV>=4.2, Follow [Opencv Installation](http://opencv.org/).
 
-### 2.3 Sophus
+### 2.3 Iridescence
+
+This branch replaces RViz with [Iridescence](https://koide3.github.io/iridescence/). `fastlivo_viewer` needs OpenGL 3.3 and an X11 display (Intel iGPU, AMD, or NVIDIA). `libglfw3` is required at runtime. The HUD GPU percentage is filled only when `nvidia-smi` is present (more support to be added later).
+
+Ubuntu 20.04 / Noetic (source, prefix `/usr/local`):
+
+```bash
+sudo apt-get install -y libglm-dev libglfw3 libglfw3-dev libpng-dev libjpeg-dev libeigen3-dev
+git clone --recursive https://github.com/koide3/iridescence.git
+cmake -S iridescence -B iridescence/build -DCMAKE_BUILD_TYPE=Release
+cmake --build iridescence/build -j$(nproc)
+sudo cmake --install iridescence/build
+```
+
+Custom prefix (no sudo). Replace `$HOME/.local/iridescence` if you install elsewhere:
+
+```bash
+cmake -S iridescence -B iridescence/build -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=$HOME/.local/iridescence
+cmake --build iridescence/build -j$(nproc)
+cmake --install iridescence/build
+export CMAKE_PREFIX_PATH=$HOME/.local/iridescence:$CMAKE_PREFIX_PATH
+export LD_LIBRARY_PATH=$HOME/.local/iridescence/lib:$LD_LIBRARY_PATH
+```
+
+Ubuntu 22.04 / 24.04:
+
+```bash
+sudo add-apt-repository -y ppa:koide3/iridescence
+sudo apt install libiridescence-dev libglfw3
+```
+
+If Iridescence is not found, `catkin_make` still builds `fastlivo_mapping` and skips `fastlivo_viewer`. Launch with `viewer:=false` in that case.
+
+### 2.4 Sophus
 
 Sophus Installation for the non-templated/double-only version.
 
@@ -73,7 +121,7 @@ make
 sudo make install
 ```
 
-### 2.4 Vikit
+### 2.5 Vikit
 
 Vikit contains camera models, some math and interpolation functions that we need. Vikit is a catkin project, therefore, download it into your catkin workspace source folder.
 
@@ -85,24 +133,55 @@ git clone https://github.com/xuankuzcr/rpg_vikit.git
 
 ## 3. Build
 
-Clone the repository and catkin_make:
+Clone this repository on the `iridescence` branch (not `hku-mars/main`):
 
-```
+```bash
 cd ~/catkin_ws/src
-git clone https://github.com/hku-mars/FAST-LIVO2
-cd ../
+git clone -b iridescence https://github.com/DethCubeHax/FAST-LIVO2.git
+cd ~/catkin_ws
+```
+
+If Iridescence is in `/usr/local` or `$HOME/.local/iridescence`, CMake finds it. For any other prefix:
+
+```bash
+export CMAKE_PREFIX_PATH=/path/to/iridescence/prefix:$CMAKE_PREFIX_PATH
+```
+
+```bash
 catkin_make
 source ~/catkin_ws/devel/setup.bash
 ```
 
-## 4. Run our examples
+Confirm the viewer binary exists:
 
-Download FAST-LIVO2-Dataset from [Global-LVBA](https://github.com/xuankuzcr/Global-LVBA) Section IV.
-
+```bash
+ls ~/catkin_ws/devel/lib/fast_livo/fastlivo_viewer
 ```
+
+## 4. Run
+
+Download a bag (FAST-LIVO2-Dataset from [Global-LVBA](https://github.com/xuankuzcr/Global-LVBA) Section IV, or MARS-LVIG / NTU-VIRAL / HILTI). Replace `/path/to/sequence.bag` with the bag file.
+
+```bash
+# Avia
 roslaunch fast_livo mapping_avia.launch
-rosbag play YOUR_DOWNLOADED.bag
+# MARS-LVIG Avia
+# roslaunch fast_livo mapping_avia_marslvig.launch
+# NTU-VIRAL Ouster
+# roslaunch fast_livo mapping_ouster_ntu.launch
+# HILTI Hesai
+# roslaunch fast_livo mapping_hesaixt32_hilti22.launch
+
+rosbag play /path/to/sequence.bag
 ```
+
+Launches start `fastlivo_viewer` by default. Headless:
+
+```bash
+roslaunch fast_livo mapping_avia.launch viewer:=false
+```
+
+Orbit: left drag rotate, middle or right drag pan, scroll zoom. HUD: track, path, RGB / XYZ heatmap, image scale.
 
 
 ## 5. License
