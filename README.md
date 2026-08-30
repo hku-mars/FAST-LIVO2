@@ -46,9 +46,9 @@ Our associate dataset [**FAST-LIVO2-Dataset**](https://connecthkuhk-my.sharepoin
 ### 1.5 Our LiDAR-camera calibration method
 The [**FAST-Calib**](https://github.com/hku-mars/FAST-Calib) toolkit is recommended. Its output extrinsic parameters can be directly filled into the YAML file. 
 
-### 1.6 This branch (`iridescence`)
+### 1.6 Optional Iridescence viewer
 
-Replaces RViz with an [Iridescence](https://koide3.github.io/iridescence/) viewer (`fastlivo_viewer`). Mapping is unchanged. `viewer:=false` is headless.
+An [Iridescence](https://koide3.github.io/iridescence/) window (`fastlivo_viewer`) is available beside the stock RViz launches. Default `roslaunch` is still RViz. Iridescence is `viewer:=true`.
 
 - Live registered map (`/cloud_registered`) uploaded in 50k-point chunks
 - RGB colouring when the cloud has colour; XYZ heatmap (X / Y / Z) with a turbo colormap
@@ -74,9 +74,9 @@ Eigen>=3.3.4, Follow [Eigen Installation](https://eigen.tuxfamily.org/index.php?
 
 OpenCV>=4.2, Follow [Opencv Installation](http://opencv.org/).
 
-### 2.3 Iridescence
+### 2.3 Iridescence (optional)
 
-This branch replaces RViz with [Iridescence](https://koide3.github.io/iridescence/). `fastlivo_viewer` needs OpenGL 3.3 and an X11 display (Intel iGPU, AMD, or NVIDIA). `libglfw3` is required at runtime. The HUD GPU percentage is filled only when `nvidia-smi` is present (more support to be added later).
+`fastlivo_viewer` needs [Iridescence](https://koide3.github.io/iridescence/), OpenGL 3.3, an X11 display (Intel iGPU, AMD, or NVIDIA), and `libglfw3` at runtime. Skip this section if you only want RViz. The HUD GPU percentage is filled when `nvidia-smi` is present.
 
 Ubuntu 20.04 / Noetic (source, prefix `/usr/local`):
 
@@ -106,7 +106,7 @@ sudo add-apt-repository -y ppa:koide3/iridescence
 sudo apt install libiridescence-dev libglfw3
 ```
 
-If Iridescence is not found, `catkin_make` still builds `fastlivo_mapping` and skips `fastlivo_viewer`. Launch with `viewer:=false` in that case.
+`catkin_make` builds `fastlivo_mapping`. `fastlivo_viewer` is built when Iridescence is found.
 
 ### 2.4 Sophus
 
@@ -133,15 +133,15 @@ git clone https://github.com/xuankuzcr/rpg_vikit.git
 
 ## 3. Build
 
-Clone this repository on the `iridescence` branch (not `hku-mars/main`):
+Clone this repository (this fork includes the optional viewer; `hku-mars/main` is the upstream release):
 
 ```bash
 cd ~/catkin_ws/src
-git clone -b iridescence https://github.com/DethCubeHax/FAST-LIVO2.git
+git clone https://github.com/DethCubeHax/FAST-LIVO2.git
 cd ~/catkin_ws
 ```
 
-If Iridescence is in `/usr/local` or `$HOME/.local/iridescence`, CMake finds it. For any other prefix:
+RViz-only builds need no Iridescence prefix. If you installed Iridescence in `/usr/local` or `$HOME/.local/iridescence`, CMake finds it. For any other prefix:
 
 ```bash
 export CMAKE_PREFIX_PATH=/path/to/iridescence/prefix:$CMAKE_PREFIX_PATH
@@ -152,7 +152,7 @@ catkin_make
 source ~/catkin_ws/devel/setup.bash
 ```
 
-Confirm the viewer binary exists:
+If you installed Iridescence, confirm the viewer binary:
 
 ```bash
 ls ~/catkin_ws/devel/lib/fast_livo/fastlivo_viewer
@@ -175,10 +175,16 @@ roslaunch fast_livo mapping_avia.launch
 rosbag play /path/to/sequence.bag
 ```
 
-Launches start `fastlivo_viewer` by default. Headless:
+Headless:
 
 ```bash
-roslaunch fast_livo mapping_avia.launch viewer:=false
+roslaunch fast_livo mapping_avia.launch rviz:=false
+```
+
+Iridescence (after installing it and building `fastlivo_viewer`):
+
+```bash
+roslaunch fast_livo mapping_avia.launch viewer:=true
 ```
 
 Orbit: left drag rotate, middle or right drag pan, scroll zoom. HUD: track, path, RGB / XYZ heatmap, image scale.

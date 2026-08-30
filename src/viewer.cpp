@@ -3,6 +3,8 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <ctime>
 #include <fstream>
 #include <random>
 #include <memory>
@@ -543,6 +545,26 @@ void readGpu(HostCounters& host, const std::chrono::steady_clock::time_point now
   pclose(pipe);
 }
 
+void writeFpsLog(double fps, int frames) {
+  static FILE* file = nullptr;
+  static bool tried = false;
+  if (!tried) {
+    tried = true;
+    const char* path = std::getenv("FL2_FPS_LOG");
+    if (path != nullptr) {
+      file = std::fopen(path, "w");
+      if (file != nullptr) {
+        std::setvbuf(file, nullptr, _IOLBF, 0);
+        std::fputs("ts,fps,frames\n", file);
+      }
+    }
+  }
+  if (file == nullptr) {
+    return;
+  }
+  std::fprintf(file, "%ld,%.3f,%d\n", static_cast<long>(std::time(nullptr)), fps, frames);
+}
+
 void sampleHost(DrawState& state, HostCounters& host, int& frames, std::chrono::steady_clock::time_point& last_t) {
   const auto now = std::chrono::steady_clock::now();
   ++frames;
@@ -556,6 +578,7 @@ void sampleHost(DrawState& state, HostCounters& host, int& frames, std::chrono::
   state.gpu_pct = host.gpu;
   state.gpu_mem_pct = host.gpu_mem;
   state.fps = static_cast<double>(frames) / dt;
+  writeFpsLog(state.fps, frames);
   frames = 0;
   last_t = now;
 }
