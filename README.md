@@ -1,5 +1,12 @@
 # FAST-LIVO2
 
+> This workspace also contains an optional information-driven adaptive
+> fixed-lag backend under `include/adaptive_window/` and
+> `src/adaptive_window/`. See
+> [`docs/ADAPTIVE_WINDOW_INTEGRATION.md`](docs/ADAPTIVE_WINDOW_INTEGRATION.md)
+> and launch it with `mapping_avia_adaptive.launch`. The original launch files
+> remain unchanged and the extension is disabled unless its YAML is loaded.
+
 ## FAST-LIVO2: Fast, Direct LiDAR-Inertial-Visual Odometry
 
 ### 📢 News

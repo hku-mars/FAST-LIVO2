@@ -109,6 +109,7 @@ typedef struct pointWithVar
   Eigen::Matrix3d var;
   Eigen::Matrix3d point_crossmat;
   Eigen::Vector3d normal;
+  double source_lidar_time;    // native LIO-frame time for cross-modal anchoring
   pointWithVar()
   {
     var_nostate = Eigen::Matrix3d::Zero();
@@ -119,6 +120,7 @@ typedef struct pointWithVar
     point_i = Eigen::Vector3d::Zero();
     point_w = Eigen::Vector3d::Zero();
     normal = Eigen::Vector3d::Zero();
+    source_lidar_time = -1.0;
   };
 } pointWithVar;
 

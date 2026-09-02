@@ -1,0 +1,52 @@
+# Information-driven adaptive fixed-lag backend for FAST-LIVO2.
+# Start with feedback_enabled=false and validate the parallel odometry topic.
+adaptive_window:
+  enabled: true
+  feedback_enabled: false
+
+  min_window_size: 4
+  max_window_size: 12
+  initial_window_size: 6
+  max_lidar_factors: 160
+  max_cross_modal_factors: 80
+
+  # Frames retain their native timestamps. Association is nearest-neighbour
+  # with an uncertainty weight; equality of timestamps is never required.
+  merge_time_tolerance: 0.0001
+  association_max_dt: 0.08
+  association_time_sigma: 0.025
+  allow_pair_reuse: true
+
+  min_keyframe_dt: 0.05
+  max_keyframe_dt: 0.50
+  keyframe_translation: 0.20
+  keyframe_rotation_deg: 8.0
+  keyframe_utility_threshold: 0.55
+
+  min_modality_weight: 0.15
+  max_modality_weight: 2.50
+  weight_smoothing: 0.80
+  information_smoothing: 0.90
+  information_logdet_floor: -35.0
+  information_logdet_ceiling: 30.0
+  degeneracy_eigen_threshold: 0.0001
+  lidar_rmse_scale: 0.08
+  vision_rmse_scale: 20.0
+
+  solver_damping: 0.000001
+  solver_iterations: 3
+  huber_delta_lidar: 2.0
+  huber_delta_cross_modal: 3.0
+
+  pose_prior_translation_sigma: 0.08
+  pose_prior_rotation_deg: 3.0
+  extrinsic_translation_sigma: 0.05
+  extrinsic_rotation_deg: 3.0
+
+  imu_acc_noise: 0.10
+  imu_gyr_noise: 0.01
+  imu_acc_bias_rw: 0.001
+  imu_gyr_bias_rw: 0.0001
+
+  feedback_max_translation: 0.10
+  feedback_max_rotation_deg: 2.0

@@ -103,6 +103,8 @@ set(Sophus_LIBRARIES libSophus.so)
 
 # Define the catkin package
 catkin_package(
+  INCLUDE_DIRS include
+  LIBRARIES adaptive_window_core
   CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs message_runtime cv_bridge vikit_common vikit_ros image_transport
   DEPENDS EIGEN3 PCL OpenCV Sophus
 )
@@ -118,11 +120,24 @@ include_directories(
 )
 
 # Add libraries
+add_library(adaptive_window_core
+  src/adaptive_window/linear_factor.cpp
+  src/adaptive_window/information_evaluator.cpp
+  src/adaptive_window/adaptive_policy.cpp
+  src/adaptive_window/temporal_associator.cpp
+  src/adaptive_window/fixed_lag_optimizer.cpp
+  src/adaptive_window/factor_builders.cpp
+  src/adaptive_window/adaptive_window_backend.cpp
+)
 add_library(vio src/vio.cpp src/frame.cpp src/visual_point.cpp)
 add_library(lio src/voxel_map.cpp)
 add_library(pre src/preprocess.cpp)
 add_library(imu_proc src/IMU_Processing.cpp)
-add_library(laser_mapping src/LIVMapper.cpp)
+add_library(laser_mapping
+  src/LIVMapper.cpp
+  src/adaptive_window/fast_livo_bridge.cpp
+)
+target_link_libraries(laser_mapping adaptive_window_core ${catkin_LIBRARIES})
 
 # Add the main executable
 add_executable(fastlivo_mapping src/main.cpp)
@@ -130,6 +145,7 @@ add_executable(fastlivo_mapping src/main.cpp)
 # Link libraries to the executable
 target_link_libraries(fastlivo_mapping
   laser_mapping
+  adaptive_window_core
   vio
   lio
   pre
@@ -144,4 +160,10 @@ target_link_libraries(fastlivo_mapping
 # Link mimalloc if found
 if(mimalloc_FOUND)
   target_link_libraries(fastlivo_mapping mimalloc)
+endif()
+
+if(CATKIN_ENABLE_TESTING)
+  add_executable(adaptive_window_smoke test/adaptive_window_smoke.cpp)
+  target_link_libraries(adaptive_window_smoke adaptive_window_core)
+  add_test(NAME adaptive_window_smoke COMMAND adaptive_window_smoke)
 endif()

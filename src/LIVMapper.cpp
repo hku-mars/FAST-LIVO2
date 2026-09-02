@@ -146,6 +146,11 @@ void LIVMapper::initializeComponents()
   vio_manager->colmap_output_en = colmap_output_en;
   vio_manager->initializeVIO();
 
+  ros::NodeHandle adaptive_node_handle;
+  adaptive_window_bridge.reset(
+      new fast_livo::adaptive_window::FastLivoBridge(
+          adaptive_node_handle, extR, extT, vio_manager));
+
   p_imu->set_extrinsic(extT, extR);
   p_imu->set_gyr_cov_scale(V3D(gyr_cov, gyr_cov, gyr_cov));
   p_imu->set_acc_cov_scale(V3D(acc_cov, acc_cov, acc_cov));
@@ -304,6 +309,19 @@ void LIVMapper::handleVIO()
 
   vio_manager->processFrame(LidarMeasures.measures.back().img, _pv_list, voxelmap_manager->voxel_map_, LidarMeasures.last_lio_update_time - _first_lidar_time);
 
+  if (adaptive_window_bridge && adaptive_window_bridge->enabled())
+  {
+    const double image_timestamp = LidarMeasures.measures.back().vio_time;
+    const double acceleration_scale =
+        p_imu->IMU_mean_acc_norm > 1.0e-6
+            ? G_m_s2 / p_imu->IMU_mean_acc_norm
+            : 1.0;
+    adaptive_window_bridge->ProcessVision(
+        image_timestamp, _state, vio_manager,
+        LidarMeasures.measures.back().imu, acceleration_scale);
+    adaptive_window_bridge->ApplyExtrinsicFeedback(vio_manager);
+  }
+
   if (imu_prop_enable) 
   {
     ekf_finish_once = true;
@@ -369,7 +387,25 @@ void LIVMapper::handleLIO()
 
   voxelmap_manager->StateEstimation(state_propagat);
   _state = voxelmap_manager->state_;
+  const double lidar_update_timestamp = LidarMeasures.measures.back().lio_time;
+  for (auto &point : voxelmap_manager->pv_list_)
+    point.source_lidar_time = lidar_update_timestamp;
   _pv_list = voxelmap_manager->pv_list_;
+
+  if (adaptive_window_bridge && adaptive_window_bridge->enabled())
+  {
+    const double acceleration_scale =
+        p_imu->IMU_mean_acc_norm > 1.0e-6
+            ? G_m_s2 / p_imu->IMU_mean_acc_norm
+            : 1.0;
+    adaptive_window_bridge->ProcessLidar(
+        lidar_update_timestamp, _state,
+        LidarMeasures.measures.back().imu, acceleration_scale,
+        voxelmap_manager->ptpl_list_, feats_down_size);
+    if (adaptive_window_bridge->ApplyStateFeedback(lidar_update_timestamp,
+                                                   &_state))
+      voxelmap_manager->state_ = _state;
+  }
 
   double t2 = omp_get_wtime();
 
