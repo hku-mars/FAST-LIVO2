@@ -16,6 +16,7 @@ which is included as part of this source code package.
 #include "IMU_Processing.h"
 #include "vio.h"
 #include "preprocess.h"
+#include "adaptive_window/fast_livo_bridge.h"
 #include <cv_bridge/cv_bridge.h>
 #include <image_transport/image_transport.h>
 #include <nav_msgs/Path.h>
@@ -158,6 +159,7 @@ public:
   ImuProcessPtr p_imu;
   VoxelMapManagerPtr voxelmap_manager;
   VIOManagerPtr vio_manager;
+  std::unique_ptr<fast_livo::adaptive_window::FastLivoBridge> adaptive_window_bridge;
 
   ros::Publisher plane_pub;
   ros::Publisher voxel_pub;

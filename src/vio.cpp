@@ -876,6 +876,13 @@ void VIOManager::generateVisualMapPoints(cv::Mat img, vector<pointWithVar> &pg)
 
       VisualPoint *pt_new = new VisualPoint(pt);
 
+      if (pt_var.source_lidar_time >= 0.0)
+      {
+        pt_new->has_lidar_anchor_ = true;
+        pt_new->source_lidar_time_ = pt_var.source_lidar_time;
+        pt_new->source_lidar_point_ = pt_var.point_b;
+      }
+
       Vector3d f = cam->cam2world(pc);
       Feature *ftr_new = new Feature(pt_new, patch, pc, f, new_frame_->T_f_w_, 0);
       ftr_new->img_ = img;

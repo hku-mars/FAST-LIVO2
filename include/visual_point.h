@@ -35,6 +35,9 @@ public:
   bool is_normal_initialized_;  //!< True if the normal is initialized.
   bool has_ref_patch_;          //!< True if the point has a reference patch.
   Feature *ref_patch;           //!< Reference patch of the point.
+  bool has_lidar_anchor_;       //!< True when this point originated from a LiDAR scan.
+  double source_lidar_time_;    //!< Timestamp of the source LiDAR/LIO frame.
+  Vector3d source_lidar_point_; //!< Source point expressed in the LiDAR frame.
 
   VisualPoint(const Vector3d &pos);
   ~VisualPoint();

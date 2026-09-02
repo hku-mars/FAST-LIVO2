@@ -17,7 +17,9 @@ which is included as part of this source code package.
 
 VisualPoint::VisualPoint(const Vector3d &pos)
     : pos_(pos), previous_normal_(Vector3d::Zero()), normal_(Vector3d::Zero()),
-      is_converged_(false), is_normal_initialized_(false), has_ref_patch_(false)
+      is_converged_(false), is_normal_initialized_(false), has_ref_patch_(false),
+      has_lidar_anchor_(false), source_lidar_time_(-1.0),
+      source_lidar_point_(Vector3d::Zero())
 {
 }
 
