@@ -496,6 +496,7 @@ void ImuProcess::UndistortPcl(LidarMeasureGroup &lidar_meas, StatesGroup &state_
     auto it_pcl = pcl_wait_proc.points.end() - 1;
     M3D extR_Ri(Lid_rot_to_IMU.transpose() * state_inout.rot_end.transpose());
     V3D exrR_extT(Lid_rot_to_IMU.transpose() * Lid_offset_to_IMU);
+    bool all_done = false;
     for (auto it_kp = IMUpose.end() - 1; it_kp != IMUpose.begin(); it_kp--)
     {
       auto head = it_kp - 1;
@@ -530,8 +531,13 @@ void ImuProcess::UndistortPcl(LidarMeasureGroup &lidar_meas, StatesGroup &state_
         it_pcl->y = P_compensate(1);
         it_pcl->z = P_compensate(2);
 
-        if (it_pcl == pcl_wait_proc.points.begin()) break;
+        if (it_pcl == pcl_wait_proc.points.begin())
+        {
+          all_done = true;
+          break;
+        }
       }
+      if (all_done) break;
     }
     pcl_out = pcl_wait_proc;
     pcl_wait_proc.clear();
