@@ -11,6 +11,41 @@ which is included as part of this source code package.
 */
 
 #include "vio.h"
+#include <cmath>
+
+namespace
+{
+inline bool isPatchInBounds(float u_ref, float v_ref, int scale, int patch_size, int patch_size_half,
+                            int width, int height, bool with_grad, int &u_ref_i, int &v_ref_i)
+{
+  if (!std::isfinite(u_ref) || !std::isfinite(v_ref) ||
+      u_ref < 0.0f || u_ref >= static_cast<float>(width) ||
+      v_ref < 0.0f || v_ref >= static_cast<float>(height))
+  {
+    return false;
+  }
+  u_ref_i = static_cast<int>(floorf(u_ref / scale)) * scale;
+  v_ref_i = static_cast<int>(floorf(v_ref / scale)) * scale;
+  const int pad_lo = with_grad ? (patch_size_half + 1) * scale : patch_size_half * scale;
+  const int pad_hi = with_grad ? (patch_size - patch_size_half + 1) * scale : (patch_size - patch_size_half) * scale;
+  const int min_row = v_ref_i - pad_lo;
+  const int max_row = v_ref_i + pad_hi;
+  const int min_col = u_ref_i - pad_lo;
+  const int max_col = u_ref_i + pad_hi;
+  return (min_row >= 0 && max_row < height && min_col >= 0 && max_col < width);
+}
+
+inline bool isRefPatchValid(const VisualPoint *pt, int scale, int patch_size, int patch_size_half,
+                            int width, int height, int &u_ref_i, int &v_ref_i)
+{
+  if (pt == nullptr || pt->ref_patch == nullptr || pt->ref_patch->img_.empty()) return false;
+  const double depth = (pt->pos_ - pt->ref_patch->pos()).norm();
+  if (pt->ref_patch->f_[2] * depth <= 0.0) return false;
+  return isPatchInBounds(static_cast<float>(pt->ref_patch->px_[0]),
+                         static_cast<float>(pt->ref_patch->px_[1]),
+                         scale, patch_size, patch_size_half, width, height, true, u_ref_i, v_ref_i);
+}
+} // namespace
 
 VIOManager::VIOManager()
 {
@@ -928,7 +963,9 @@ void VIOManager::updateVisualMapPoints(cv::Mat img)
       continue;
     }
 
-    V2D pc(new_frame_->w2c(pt->pos_));
+    V3D pf(new_frame_->w2f(pt->pos_));
+    if (pf[2] <= 0) continue;
+    V2D pc(new_frame_->f2c(pf));
     bool add_flag = false;
 
     // TODO: condition: distance and view_angle
@@ -958,6 +995,11 @@ void VIOManager::updateVisualMapPoints(cv::Mat img)
     }
     if (add_flag)
     {
+      int u_ref_i = 0, v_ref_i = 0;
+      if (!isPatchInBounds(static_cast<float>(pc[0]), static_cast<float>(pc[1]), 1, patch_size, patch_size_half, width, height, false, u_ref_i, v_ref_i))
+      {
+        continue;
+      }
       float *patch_temp = new float[patch_size_total];
       getImagePatch(img, pc, patch_temp, 0);
       update_num += 1;
@@ -1045,9 +1087,6 @@ void VIOManager::updateReferencePatch(const unordered_map<VOXEL_LOCATION, VoxelO
     {
       Feature *ref_patch_temp = *it;
       float *patch_temp = ref_patch_temp->patch_;
-      float NCC_up = 0.0;
-      float NCC_down1 = 0.0;
-      float NCC_down2 = 0.0;
       float NCC = 0.0;
       float score = 0.0;
       int count = 0;
@@ -1058,8 +1097,8 @@ void VIOManager::updateReferencePatch(const unordered_map<VOXEL_LOCATION, VoxelO
       double cos_angle = pf.dot(norm_vec);
       // if(fabs(cos_angle) < 0.86) continue; // 20 degree
 
-      float ref_mean;
-      if (abs(ref_patch_temp->mean_) < 1e-6)
+      float ref_mean = ref_patch_temp->mean_;
+      if (abs(ref_mean) < 1e-6)
       {
         float ref_sum = std::accumulate(patch_temp, patch_temp + patch_size_total, 0.0);
         ref_mean = ref_sum / patch_size_total;
@@ -1071,25 +1110,32 @@ void VIOManager::updateReferencePatch(const unordered_map<VOXEL_LOCATION, VoxelO
         if ((*itm)->id_ == ref_patch_temp->id_) continue;
         float *patch_cache = (*itm)->patch_;
 
-        float other_mean;
-        if (abs((*itm)->mean_) < 1e-6)
+        float other_mean = (*itm)->mean_;
+        if (abs(other_mean) < 1e-6)
         {
           float other_sum = std::accumulate(patch_cache, patch_cache + patch_size_total, 0.0);
           other_mean = other_sum / patch_size_total;
           (*itm)->mean_ = other_mean;
         }
 
+        float NCC_up = 0.0;
+        float NCC_down1 = 0.0;
+        float NCC_down2 = 0.0;
         for (int ind = 0; ind < patch_size_total; ind++)
         {
           NCC_up += (patch_temp[ind] - ref_mean) * (patch_cache[ind] - other_mean);
           NCC_down1 += (patch_temp[ind] - ref_mean) * (patch_temp[ind] - ref_mean);
           NCC_down2 += (patch_cache[ind] - other_mean) * (patch_cache[ind] - other_mean);
         }
-        NCC += fabs(NCC_up / sqrt(NCC_down1 * NCC_down2));
+        float denom = sqrt(NCC_down1 * NCC_down2);
+        if (denom > 1e-6f)
+        {
+          NCC += fabs(NCC_up / denom);
+        }
         count++;
       }
 
-      NCC = NCC / count;
+      if (count > 0) NCC = NCC / count;
 
       score = NCC + cos_angle;
 
@@ -1350,10 +1396,13 @@ void VIOManager::precomputeReferencePatches(int level)
     const int scale = (1 << level);
 
     VisualPoint *pt = visual_submap->voxel_points[i];
-    if (pt == nullptr || pt->ref_patch == nullptr) continue;
+    int u_ref_i = 0, v_ref_i = 0;
+    if (!isRefPatchValid(pt, scale, patch_size, patch_size_half, width, height, u_ref_i, v_ref_i))
+    {
+      continue;
+    }
 
     cv::Mat img = pt->ref_patch->img_;
-    if (img.empty()) continue;
 
     double depth((pt->pos_ - pt->ref_patch->pos()).norm());
     V3D pf = pt->ref_patch->f_ * depth;
@@ -1365,8 +1414,6 @@ void VIOManager::precomputeReferencePatches(int level)
 
     const float u_ref = pc[0];
     const float v_ref = pc[1];
-    const int u_ref_i = floorf(pc[0] / scale) * scale;
-    const int v_ref_i = floorf(pc[1] / scale) * scale;
     const float subpix_u_ref = (u_ref - u_ref_i) / scale;
     const float subpix_v_ref = (v_ref - v_ref_i) / scale;
     const float w_ref_tl = (1.0 - subpix_u_ref) * (1.0 - subpix_v_ref);
@@ -1426,9 +1473,24 @@ void VIOManager::updateStateInverse(cv::Mat img, int level)
   H_sub.resize(H_DIM, 6);
   H_sub.setZero();
 
+  std::vector<uint8_t> ref_patch_valid(total_points, 0);
+  {
+    const int ref_scale = (1 << level);
+    int tmp_u = 0, tmp_v = 0;
+    for (int i = 0; i < total_points; i++)
+    {
+      if (isRefPatchValid(visual_submap->voxel_points[i], ref_scale, patch_size, patch_size_half, width, height, tmp_u, tmp_v))
+      {
+        ref_patch_valid[i] = 1;
+      }
+    }
+  }
+
   for (int iteration = 0; iteration < max_iterations; iteration++)
   {
     double t1 = omp_get_wtime();
+    z.setZero();
+    H_sub.setZero();
     double count_outlier = 0;
     if (has_ref_patch_cache == false) precomputeReferencePatches(level);
     int n_meas = 0;
@@ -1449,15 +1511,19 @@ void VIOManager::updateStateInverse(cv::Mat img, int level)
 
       VisualPoint *pt = visual_submap->voxel_points[i];
 
-      if (pt == nullptr) continue;
+      if (pt == nullptr || !ref_patch_valid[i]) continue;
 
       V3D pf = Rcw * pt->pos_ + Pcw;
+      if (pf[2] <= 0) continue;
       pc = cam->world2cam(pf);
 
       const float u_ref = pc[0];
       const float v_ref = pc[1];
-      const int u_ref_i = floorf(pc[0] / scale) * scale;
-      const int v_ref_i = floorf(pc[1] / scale) * scale;
+      int u_ref_i = 0, v_ref_i = 0;
+      if (!isPatchInBounds(u_ref, v_ref, scale, patch_size, patch_size_half, width, height, false, u_ref_i, v_ref_i))
+      {
+        continue;
+      }
       const float subpix_u_ref = (u_ref - u_ref_i) / scale;
       const float subpix_v_ref = (v_ref - v_ref_i) / scale;
       const float w_ref_tl = (1.0 - subpix_u_ref) * (1.0 - subpix_v_ref);
@@ -1487,9 +1553,14 @@ void VIOManager::updateStateInverse(cv::Mat img, int level)
       error += patch_error;
     }
 
-    error = error / n_meas;
-
     compute_jacobian_time += omp_get_wtime() - t1;
+
+    if (n_meas == 0)
+    {
+      (*state) = old_state;
+      break;
+    }
+    error = error / n_meas;
 
     double t3 = omp_get_wtime();
 
@@ -1551,7 +1622,9 @@ void VIOManager::updateState(cv::Mat img, int level)
     Rcw = Rci * Rwi.transpose();
     Pcw = -Rci * Rwi.transpose() * Pwi + Pci;
     Jdp_dt = Rci * Rwi.transpose();
-    
+
+    z.setZero();
+    H_sub.setZero();
     float error = 0.0;
     int n_meas = 0;
     // int max_threads = omp_get_max_threads();
@@ -1580,16 +1653,21 @@ void VIOManager::updateState(cv::Mat img, int level)
       if (pt == nullptr) continue;
 
       V3D pf = Rcw * pt->pos_ + Pcw;
+      if (pf[2] <= 0) continue;
       V2D pc = cam->world2cam(pf);
+
+      float u_ref = pc[0];
+      float v_ref = pc[1];
+      int u_ref_i = 0, v_ref_i = 0;
+      if (!isPatchInBounds(u_ref, v_ref, scale, patch_size, patch_size_half, width, height, true, u_ref_i, v_ref_i))
+      {
+        continue;
+      }
 
       computeProjectionJacobian(pf, Jdpi);
       M3D p_hat;
       p_hat << SKEW_SYM_MATRX(pf);
 
-      float u_ref = pc[0];
-      float v_ref = pc[1];
-      int u_ref_i = floorf(pc[0] / scale) * scale;
-      int v_ref_i = floorf(pc[1] / scale) * scale;
       float subpix_u_ref = (u_ref - u_ref_i) / scale;
       float subpix_v_ref = (v_ref - v_ref_i) / scale;
       float w_ref_tl = (1.0 - subpix_u_ref) * (1.0 - subpix_v_ref);
@@ -1642,9 +1720,14 @@ void VIOManager::updateState(cv::Mat img, int level)
       error += patch_error;
     }
 
-    error = error / n_meas;
-    
     compute_jacobian_time += omp_get_wtime() - t1;
+
+    if (n_meas == 0)
+    {
+      (*state) = old_state;
+      break;
+    }
+    error = error / n_meas;
 
     // printf("\nPYRAMID LEVEL %i\n---------------\n", level);
     // std::cout << "It. " << iteration
