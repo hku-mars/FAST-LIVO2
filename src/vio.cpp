@@ -642,7 +642,7 @@ void VIOManager::retrieveFromVisualSparseMap(cv::Mat img, vector<pointWithVar> &
       // t_2 += omp_get_wtime() - t_1;
 
       // t_1 = omp_get_wtime();
-      Feature *ref_ftr;
+      Feature *ref_ftr = nullptr;
       std::vector<float> patch_wrap(warp_len);
 
       int search_level;
@@ -679,6 +679,7 @@ void VIOManager::retrieveFromVisualSparseMap(cv::Mat img, vector<pointWithVar> &
               }
               count++;
             }
+            if (count == 0) continue;
             phtometric_errors = phtometric_errors / count;
             if (phtometric_errors < phtometric_errors_min)
             {
@@ -686,8 +687,11 @@ void VIOManager::retrieveFromVisualSparseMap(cv::Mat img, vector<pointWithVar> &
               ref_ftr = ref_patch_temp;
             }
           }
-          pt->ref_patch = ref_ftr;
-          pt->has_ref_patch_ = true;
+          if (ref_ftr != nullptr)
+          {
+            pt->ref_patch = ref_ftr;
+            pt->has_ref_patch_ = true;
+          }
         }
         else { ref_ftr = pt->ref_patch; }
       }
@@ -695,6 +699,8 @@ void VIOManager::retrieveFromVisualSparseMap(cv::Mat img, vector<pointWithVar> &
       {
         if (!pt->getCloseViewObs(new_frame_->pos(), ref_ftr, pc)) continue;
       }
+
+      if (ref_ftr == nullptr) continue;
 
       if (normal_en)
       {
@@ -786,6 +792,7 @@ void VIOManager::computeJacobianAndUpdateEKF(cv::Mat img)
   if (total_points == 0) return;
   
   compute_jacobian_time = update_ekf_time = 0.0;
+  G.setZero();
 
   for (int level = patch_pyrimid_level - 1; level >= 0; level--)
   {
@@ -923,9 +930,7 @@ void VIOManager::updateVisualMapPoints(cv::Mat img)
 
     V2D pc(new_frame_->w2c(pt->pos_));
     bool add_flag = false;
-    
-    float *patch_temp = new float[patch_size_total];
-    getImagePatch(img, pc, patch_temp, 0);
+
     // TODO: condition: distance and view_angle
     // Step 1: time
     Feature *last_feature = pt->obs_.back();
@@ -953,6 +958,8 @@ void VIOManager::updateVisualMapPoints(cv::Mat img)
     }
     if (add_flag)
     {
+      float *patch_temp = new float[patch_size_total];
+      getImagePatch(img, pc, patch_temp, 0);
       update_num += 1;
       update_flag[i] = 1;
       Vector3d f = cam->cam2world(pc);
@@ -1343,9 +1350,10 @@ void VIOManager::precomputeReferencePatches(int level)
     const int scale = (1 << level);
 
     VisualPoint *pt = visual_submap->voxel_points[i];
-    cv::Mat img = pt->ref_patch->img_;
+    if (pt == nullptr || pt->ref_patch == nullptr) continue;
 
-    if (pt == nullptr) continue;
+    cv::Mat img = pt->ref_patch->img_;
+    if (img.empty()) continue;
 
     double depth((pt->pos_ - pt->ref_patch->pos()).norm());
     V3D pf = pt->ref_patch->f_ * depth;
@@ -1498,7 +1506,8 @@ void VIOManager::updateStateInverse(cv::Mat img, int level)
       auto &&HTz = H_sub_T * z;
       auto vec = (*state_propagat) - (*state);
       G.block<DIM_STATE, 6>(0, 0) = K_1.block<DIM_STATE, 6>(0, 0) * H_T_H.block<6, 6>(0, 0);
-      auto solution = -K_1.block<DIM_STATE, 6>(0, 0) * HTz + vec - G.block<DIM_STATE, 6>(0, 0) * vec.block<6, 1>(0, 0);
+      MD(DIM_STATE, 1)
+      solution = -K_1.block<DIM_STATE, 6>(0, 0) * HTz + vec - G.block<DIM_STATE, 6>(0, 0) * vec.block<6, 1>(0, 0);
       (*state) += solution;
       auto &&rot_add = solution.block<3, 1>(0, 0);
       auto &&t_add = solution.block<3, 1>(3, 0);
