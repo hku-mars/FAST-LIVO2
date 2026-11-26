@@ -998,38 +998,42 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
       mtx_buffer.unlock();
       sig_buffer.notify_all();
 
-      *(meas.pcl_proc_cur) = *(meas.pcl_proc_next);
-      PointCloudXYZI().swap(*meas.pcl_proc_next);
-
-      int lid_frame_num = lid_raw_data_buffer.size();
-      int max_size = meas.pcl_proc_cur->size() + 24000 * lid_frame_num;
-      meas.pcl_proc_cur->reserve(max_size);
-      meas.pcl_proc_next->reserve(max_size);
-      // deque<PointCloudXYZI::Ptr> lidar_buffer_tmp;
-
-      while (!lid_raw_data_buffer.empty())
+      meas.pcl_proc_cur->clear();
+      while (!lid_raw_data_buffer.empty() && lid_header_time_buffer.front() <= img_capture_time)
       {
-        if (lid_header_time_buffer.front() > img_capture_time) break;
-        auto pcl(lid_raw_data_buffer.front()->points);
-        double frame_header_time(lid_header_time_buffer.front());
-        float max_offs_time_ms = (m.lio_time - frame_header_time) * 1000.0f;
+        meas.pending_lidar_scans.emplace_back(lid_header_time_buffer.front(), lid_raw_data_buffer.front());
+        lid_raw_data_buffer.pop_front();
+        lid_header_time_buffer.pop_front();
+      }
 
-        for (int i = 0; i < pcl.size(); i++)
+      // A LiDAR packet can span several images. Compare every remaining return
+      // with the actual image timestamp, even if it survived an earlier cut.
+      for (auto it = meas.pending_lidar_scans.begin(); it != meas.pending_lidar_scans.end();)
+      {
+        const double scan_time = it->first;
+        const double offset_to_state_ms = (scan_time - meas.last_lio_update_time) * 1000.0;
+        PointCloudXYZI::Ptr tail;
+        for (const auto &raw : it->second->points)
         {
-          auto pt = pcl[i];
-          if (pcl[i].curvature < max_offs_time_ms)
+          const double acquisition_time = scan_time + static_cast<double>(raw.curvature) * 0.001;
+          if (acquisition_time < m.lio_time)
           {
-            pt.curvature += (frame_header_time - meas.last_lio_update_time) * 1000.0f;
+            auto pt = raw;
+            pt.curvature += offset_to_state_ms;
             meas.pcl_proc_cur->points.push_back(pt);
           }
           else
           {
-            pt.curvature += (frame_header_time - m.lio_time) * 1000.0f;
-            meas.pcl_proc_next->points.push_back(pt);
+            if (!tail) tail.reset(new PointCloudXYZI());
+            tail->points.push_back(raw);
           }
         }
-        lid_raw_data_buffer.pop_front();
-        lid_header_time_buffer.pop_front();
+        if (tail)
+        {
+          it->second = std::move(tail);
+          ++it;
+        }
+        else it = meas.pending_lidar_scans.erase(it);
       }
 
       meas.measures.push_back(m);

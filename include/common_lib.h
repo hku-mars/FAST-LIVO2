@@ -13,6 +13,7 @@ which is included as part of this source code package.
 #ifndef COMMON_LIB_H
 #define COMMON_LIB_H
 
+#include <utility>
 #include <utils/so3_math.h>
 #include <utils/types.h>
 #include <utils/color.h>
@@ -79,7 +80,8 @@ struct LidarMeasureGroup
   double last_lio_update_time;
   PointCloudXYZI::Ptr lidar;
   PointCloudXYZI::Ptr pcl_proc_cur;
-  PointCloudXYZI::Ptr pcl_proc_next;
+  // Unconsumed returns retain their offsets from the original LiDAR packet header.
+  deque<pair<double, PointCloudXYZI::Ptr>> pending_lidar_scans;
   deque<struct MeasureGroup> measures;
   EKF_STATE lio_vio_flg;
   int lidar_scan_index_now;
@@ -92,7 +94,6 @@ struct LidarMeasureGroup
     lio_vio_flg = WAIT;
     this->lidar.reset(new PointCloudXYZI());
     this->pcl_proc_cur.reset(new PointCloudXYZI());
-    this->pcl_proc_next.reset(new PointCloudXYZI());
     this->measures.clear();
     lidar_scan_index_now = 0;
     last_lio_update_time = -1.0;
